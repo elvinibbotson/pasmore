@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>miro</title>
+    <meta name="description" content="drawing app | installable PWA">
+    <meta name="robots" content="index nofollow">
+    <meta name="keywords" content="art, drawing, design, PWA, app">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="theme-color" content="#333333">
+	<title>miro</title>
+	<link rel="stylesheet" type="text/css" href="miroStyle.css">
+  	<link rel="manifest" href="manifest.json">
+  	<link rel="apple-touch-icon" href="/icons/AppleIcon.png"/>
+  	<meta name="application-name" content="miro">
+  	<meta name="msapplication-square150x150logo" content="icons/icon150.png">
+  	<meta name="msapplication-square70x70logo" content="icons/icon75.png">
+</head>
+<body>
+    <div id='prompt'>
+        <!--p><b>Draft:</b> digital drawings<br>
+        2D scale-drawing app for technical drafting<br>
+        A4-format (landscape or portrait) drawings<br>
+        Installs on your device as an app.</p>
+        <p>For <b>user guide</b> tap <i>document</i> button.</p-->
+    </div>
+    <div id='graphic'>
+        <svg id='background' xmlns='http://www.w3.org/2000/svg' width='297mm' height='210mm' viewBox='0 0 297 210'></svg>
+        <div id='drawing'>
+		    <svg id='svg' xmlns='http://www.w3.org/2000/svg' width='297mm' height='210mm' viewBox='0 0 297 210'>
+		    <defs>
+		        <filter id='blur1' x='-10' y='-10' width='297' height='210'>
+		            <feGaussianBlur in='SourceGraphic' stdDeviation='1'/>
+		        </filter>
+		        <filter id='blur2' x='-10' y='-10' width='297' height='210'>
+		            <feGaussianBlur in='SourceGraphic' stdDeviation='2'/>
+		        </filter>
+		        <filter id='blur3' x='-10' y='-10' width='297' height='210'>
+		            <feGaussianBlur in='SourceGraphic' stdDeviation='3'/>
+		        </filter>
+		        <filter id='blur4' x='-10' y='-10' width='297' height='210'>
+		            <feGaussianBlur in='SourceGraphic' stdDeviation='4'/>
+		        </filter>
+		        <filter id='blur5' x='-10' y='-10' width='297' height='210'>
+		            <feGaussianBlur in='SourceGraphic' stdDeviation='5'/>
+		        </filter>
+		        <marker id='arcArrows' markerWidth='20' markerHeight='20' refX='20' refY='10' orient='auto'>
+		            <path d='M5,5 L10,0 L15,5' stroke='blue' fill='none'/>
+		            <path d='M5,15 L10,20 L15,15' stroke='blue' fill='none'/>
+		        </marker>
+		        <clipPath id='clipper'>
+		            <rect x='0' y='0' width='297' height='210'/>
+		        </clipPath>
+		        <g id='mover'>
+		            <circle id='moveCircle' cx='0' cy='0' r='1' stroke='blue' stroke-width='1' fill='#FFFFFF88'/>  
+		        </g>
+		        <g id='sizer'>
+		            <circle id='sizeDisc' cx='0' cy='0' r='1' stroke='none' fill='#0000FF88'/>
+		        </g>
+		        <g id='combis'></g>
+		    </defs>
+		    <g id='dwg' style="clip-path: url(#clipper);">
+		    </g>
+		    <g id='selection'></g>
+		    <g id='handles'></g>
+		    <g id='blue'>
+                <g id='guides'>
+                    <rect class='blue' id='selectionBox' x='0' y='0' width='0' height='0' stroke='blue' fill='none'/>
+                    <polyline class='blue' id='bluePolyline' points='0,0' stroke='blue' fill='none'/>
+		            <rect class='blue' id='blueBox' x='0' y='0' width='0' height='0' stroke='blue' fill='none'/>
+		            <ellipse class='blue' id='blueOval' cx='0' cy='0' rx='0' ry='0' stroke='blue' fill='none'/>
+		            <line class='blue' id='blueRadius' x1='0' y1='0' x2='-10' y2='-10' marker-end='url(#arcArrows)' stroke='blue' fill='none'/>
+                </g>
+		    </g>
+		    </svg>
+		</div>
+	</div>
+    <div id='tools'>
+        <button id='docButton' class='iconButton'></button>
+        <button id='zoomInButton' class='iconButton'></button>
+        <button id='zoomOutButton' class='iconButton'></button>
+        <button id='extentsButton' class='iconButton'></button>
+        <button id='panButton' class='iconButton'></button>
+        <button id='sketchButton' class='iconButton'></button>
+        <button id='lineButton' class='iconButton'></button>
+        <button id='boxButton' class='iconButton'></button>
+        <button id='ovalButton' class='iconButton'></button>
+        <button id='arcButton' class='iconButton'></button>
+        <button id='textButton' class='iconButton'></button>
+        <button id='stampButton' class='iconButton'></button>
+    </div>
+    <div id='editTools'>
+        <button id='addButton' class='iconButton' disabled></button>
+        <button id='deleteButton' class='iconButton'></button>
+        <button id='forwardButton' class='iconButton'></button>
+        <button id='backButton' class='iconButton'></button>
+        <button id='moveButton' class='iconButton'></button>
+        <button id='spinButton' class='iconButton'></button>
+        <button id='flipButton' class='iconButton'></button>
+        <button id='alignButton' class='iconButton'></button>
+        <button id='doubleButton' class='iconButton'></button>
+        <button id='repeatButton' class='iconButton'></button>
+        <button id='filletButton' class='iconButton'></button>
+        <button id='defineButton' class='iconButton'></button>
+    </div>
+    <div id='styleGroup'>
+    	<div id='checks'></div>
+    <div id='fill'>A</div>
+    <div id='line'></div>
+    </div>
+    <button id='undoButton' class='iconButton'></button>
+    <div id='docDialog' class='dialog'>
+        <p>DRAWING: <span id='drawingName'></span></p>
+        <p><span id='drawingSize'></span> | <span id='drawingAspect'></span> | current zoom: <span id='zoom'></span></p>
+        <p>grid size: <select id='gridSize'>
+            <option value=5>5mm</option>
+            <option value=10>10mm</option>
+            <option value=15>15mm</option>
+            <option value=20>20mm</option>
+            <option value=25>25mm</option>
+        </select>
+        snap<input type='checkbox' id='gridSnap'>
+        </p>
+        <p><button id='new'>NEW</button> <button id='load'>LOAD</button> <button id='save'>SAVE</button> <button id='helpButton'>HELP</button></p>
+    </div>
+    <div id='newDrawingDialog' class='dialog'>
+        <p><button id='createNewDrawing'>NEW DRAWING</button></p>
+        <p>size:
+        <select id='sizeSelect'>
+            <option value=1>A1 (840x594mm)</option>
+            <option value=2>A2 (594x420mm)</option>
+            <option value=3>A3 (420x297mm)</option>
+            <option value=4>A4 (297x210mm)</option>
+            <option value=5>A5 (210x148mm)</option>
+            <option value=6>A6 (148x105mm)</option>
+            <option value=7>20cm square</option>
+            <option value=8>21cm square</option>
+            <option value=9>30cm square</option>
+            <option value=10>15x10cm</option>
+            <option value=11>18x13cm</option>
+            <option value=12>20x15cm</option>
+            <option value=13>25x20cm</option>
+            <option value=14>30x25cm</option>
+            <option value=15>40x30cm</option>
+            <option value=16>50x40cm</option>
+            <option value=17>70x50cm</option>
+        </select>
+    </div>
+    <div id='loadDialog' class='dialog'>
+        <p>LOAD</p>
+        <p>
+        <input type='radio' name='loadMethod' id='replace' checked>
+        <label for='replace'>replace</label><br>
+        <input type='radio' name='loadMethod' id='merge'>
+        <label for='merge'>merge</label><br>
+        <input type='radio' name='loadMethod' id='background'>
+        <label for='background'>background</label><br>
+        <input type='radio' name='loadMethod' id='stamp'>
+        <label for='stamp'>stamp</label>
+        </p>
+        <p><input type="file" id="fileChooser" class='nameField'>
+        </p>
+    </div>
+    <div id='saveDialog' class='dialog'>
+        <p>SAVE</p>
+        <p>
+            <input type='radio' name='saveMethod' id='data' checked>
+            <label for='data'>data (json)</label><br>
+            <input type='radio' name='saveMethod' id='print'>
+            <label for='print'>to print (svg)</label><br>
+            <input type='radio' name='loadMethod' id='image'>
+            <label for='image'>image (png)</label><br>
+        </p>
+        <p><button id='confirmSave'>SAVE</button></p>
+        <p>as <input type='text' id='saveName' class='nameField'/>.json</p>
+        <p>The file will appear in your downloads folder</p>
+    </div>
+    <div id='stampDialog' class='dialog'>
+        <p>select a stamp</p>
+        <p><select id='stampList'>
+            <option onclick='prompt("select a stamp");' value=null>select a stamp</option>
+        </select></p>
+    </div>
+    <div id='stylesDialog' class='dialog'>
+        <p>
+        <select id='lineType'>
+            <option value='none'>none</option>
+            <option value='solid' selected>solid</option>
+            <option value='dashed'>dashed</option>
+            <option value='dotted'>dotted</option>
+        </select> line<br>
+        <input type='range' id='lineWidth' name='lineWidth' min='0.25' max='10' step='0.25'> width
+        </p>
+        <p><input type="color" id="lineCol" name="lineColour" value="#000000"> line/text</p>
+        <p>
+        <select id='textFont'>
+            <option value='sans'>sans</option>
+            <option value='serif'>serif</option>
+            <option value='mono'>mono</option>
+            <option value='cursive'>cursive</option>
+        </select> text<br>
+        <input type='range' id='textSize' name='textSize' min='3' max='25' step='2'> size<br>
+        <select id='textStyle'>
+            <option value='fine' selected>fine</option>
+            <option value='bold'>bold</option>
+            <option value='italic'>italic</option>
+        </select> style
+        </p>
+        <p>
+        <select id='fillType'>
+            <option value='none'>none</option>
+            <option value='solid' selected>solid</option>
+            <option value='pattern'>pattern</option>
+        </select> fill
+        </p>
+        <p><input type="color" id="fillCol" name="fillColour" value="#FFFFFF"> fill</p>
+        <p>
+        <input type='range' id='opacity' name='opacity' min='0' max='1' step='0.1'> opacity<br>
+        <input type='range' id='blur' name='blur' min='0' max='5' step='1'> blur
+        </p>
+    </div>
+    <div id='removeDialog' class='dialog'>
+        <p><button id='confirmRemove'>REMOVE</button></p>
+        <p>selected element(s)?</p>
+    </div>
+    <div id='moveDialog' class='dialog'>
+        <p><button id='confirmMove'>MOVE</button></p>
+        <p><input type='number' id='moveRight'/><img src='svg/up.svg' class='spin90'/>
+        <input type='number' id='moveDown'/><img src='svg/up.svg' class='spin180'/></p>
+        <p>...or <input type='number' id='moveDist'/> @ <input type='number' id='moveAngle'/> &deg;</p>
+    </div>
+    <div id='spinDialog' class='dialog'>
+        <p><button id='confirmSpin'>SPIN</button></p>
+        <p>clockwise <input type='number' id='spinAngle'/>&deg;</p>
+    </div>
+    <div id='flipDialog' class='dialog'>
+        <p>FLIP</p>
+        <label for='copy' id='copyLabel'>copy</label><input type='checkbox' id='copy'/>
+        <div id='flipOptions'>
+            <img src='svg/flip.svg'/><img src='svg/flip.svg' class='spin90'/>   
+        </div>
+    </div>
+    <div id='alignDialog' class='dialog'>
+        <p>ALIGN</p>
+        <div id='alignOptions'>
+            <img src='svg/align.svg'/><img src='svg/centre.svg'/><img src='svg/align.svg' class='spin180'/><br>
+            <img src='svg/align.svg' class='spin90'/><img src='svg/centre.svg' class='spin90'/><img src='svg/align.svg' class='spin270'/>
+        </div>
+    </div>
+    <div id='doubleDialog' class='dialog'>
+        <p><button id='confirmDouble'>DOUBLE</button></p>
+        <p><input type='number' id='offset'/>mm right/outside
+        <p>negative offsets are left/inside</p>
+    </div>
+    <div id='repeatDialog' class='dialog'>
+        <p><button id='confirmRepeat'>REPEAT</button></p>
+        <p><input type='number' id='countH'/>@<input type='number' id='distH'/>mm<img src='svg/up.svg' class='spin90'/></p>
+        <p><input type='number' id='countV'/>@<input type='number' id='distV'/>mm<img src='svg/up.svg' class='spin180'/></p>
+    </div>
+    <div id='filletDialog' class='dialog'>
+        <p><button id='confirmFillet'>FILLET</button></p>
+        <p>radius:<input type='number' id='filletR'/>mm</p>
+    </div>
+    <div id='defineDialog' class='dialog'>
+        <p><button id='confirmDefine'>DEFINE</button> stamp</p>
+        <p>name: <input type='text' id='stampName'/>.json</p>
+    </div>
+    <div id='textDialog' class='dialog'>
+        text: <input id='text' type='text' size='50'/>
+    </div>
+	<script src="miroScript.js" async></script>
+</body>
+</html>
