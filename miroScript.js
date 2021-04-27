@@ -16,6 +16,7 @@ var mode=null;
 var scr={}; // screen size .w & .h and cursor coordinates .x & .y
 var dwg={}; // drawing size .w & .h and offset .x & .y
 var view={}; // viewBox for background and drawing
+var copy={}; // x,y offsets, 'active' flag and IDs of elements copied
 var x=0;
 var y=0;
 var x0=0;
@@ -33,24 +34,25 @@ var db=null; // indexed database holding SVG elements
 var nodes=[]; // array of nodes each with x,y coordinates and element ID
 var dims=[]; // array of links between elements and dimensions
 var element=null; // current element
-var elID=null; // id of current element
+// var elID=null; // id of current element
 var memory=[]; // holds element states to allow undo
 var node=0; // node number (0-9) within selected element
 var blueline=null; // bluePolyline
 var stamp=null; // current stamp
 var stampID=null; // id of current stamp
 var lineType='solid'; // default styles
-var lineCol='black';
+var lineCol='#000000';
 var lineW=0.25; // 0.25mm
 var fillType='solid';
-var fillCol='#CCCCCC';
+var fillCol='#cccccc';
 var opacity=1;
 var blur=0;
 var textFont='sans';
 var textSize=5; // default text size
 var textStyle='fine'; // normal text
 var currentDialog=null;
-// var zoomLimit=2; // controls minimum zoom - setting of 2 for minimum zoom of 1
+var image={}; // holds background image sizes
+var ctx=null; // canvas context
 
 class Point {
     constructor(x,y) {
@@ -61,8 +63,12 @@ class Point {
 
 scr.w=screen.width;
 scr.h=screen.height;
-dwg.x=dwg.y=0;
+dwg.x=dwg.y=copy.x=copy.y=0;
+copy.active=false;
 console.log("screen size "+scr.w+"x"+scr.h);
+id('canvas').width=scr.w;
+id('canvas').height=scr.h;
+ctx=id('canvas').getContext('2d');
 name=window.localStorage.getItem('name');
 size=window.localStorage.getItem('size');
 aspect=window.localStorage.getItem('aspect');
@@ -173,7 +179,7 @@ id('createNewDrawing').addEventListener('click',function() {
     window.localStorage.setItem('size',size);
     name='';
     window.localStorage.setItem('name',name);
-    elID=0;
+    // elID=0;
     // CLEAR DRAWING IN HTML & DATABASE
     id('dwg').innerHTML=''; // clear drawing
     id('handles').innerHTML=''; // clear any edit handles
@@ -195,58 +201,46 @@ id('load').addEventListener('click',function() {
     showDialog('loadDialog',true); 
 });
 id('fileChooser').addEventListener('change',function() {
-    // CLEAR graphs AND stamps OBJECT STORES BEFORE LOADING NEW DRAWING DATA
     var method='replace';
-    if(id('merge').checked) method='merge';
-    else if(id('background').checked) method='background';
+    if(id('backgnd').checked) method='background';
+    else if(id('merge').checked) method='merge';
     else if(id('stamp').checked) method='stamp';
     console.log('load method: '+method);
     var file=id('fileChooser').files[0];
-    console.log('load file '+file+' name: '+file.name);
+    console.log('load file '+file+' name: '+file.name+' path: '+file.webkitRelativePath);
     var loader=new FileReader();
     loader.addEventListener('load',function(evt) {
         var data=evt.target.result;
-        console.log("file read: "+data);
-		var json=JSON.parse(data);
-		console.log("json: "+json);
-		var transaction=db.transaction(['graphs','stamps'],'readwrite');
+        // console.log("file "+file.name+" read: "+data);
+        var transaction=db.transaction(['graphs','stamps'],'readwrite');
 		var graphStore=transaction.objectStore('graphs');
 		var stampStore=transaction.objectStore('stamps');
-		if(method=='replace') {
-		    name=file.name;
-		    var n=name.indexOf('.json');
-		    name=name.substr(0,n);
-		    window.localStorage.setItem('name',name);
-		    id('dwg').innerHTML=''; // clear drawing
-            id('handles').innerHTML=''; // clear any edit handles
-		    graphStore.clear();
-		    stampStore.clear();
-		    nodes=[];
-		    dims=[];
-		    // window.localStorage.setItem('order','');
-		    aspect=json.aspect;
-		    window.localStorage.setItem('aspect',aspect);
-		    size=json.size;
-		    window.localStorage.setItem('size',size);
-		    console.log('load drawing - aspect:'+aspect+' size:'+size);
-		    initialise();
-		}
-		else if(method=='merge') {
-		    name='';
-		    widow.localStorage.setItem('name','');
-		}
-		if(method=='stamp') { // load selected stamp
-		    var name=json.name; // one stamp per file
-		    console.log("add "+name);
-			var request=stampStore.add(json);
-			request.onsuccess=function(e) {
-			    var n=request.result;
-				console.log("stamp added to database: "+n);
-			};
-			request.onerror=function(e) {console.log("error adding stamps");};
-		}
-		else { // load selected drawing 
-		    for(var i=0;i<json.graphs.length;i++) {
+        if((method=='replace')||(method=='merge')) {
+        	var json=JSON.parse(data);
+			console.log("json: "+json);
+			if(method=='replace') {
+		    	name=file.name;
+		    	var n=name.indexOf('.json');
+		    	name=name.substr(0,n);
+		    	window.localStorage.setItem('name',name);
+		    	id('dwg').innerHTML=''; // clear drawing
+            	id('handles').innerHTML=''; // clear any edit handles
+		    	graphStore.clear();
+		    	stampStore.clear();
+		    	nodes=[];
+		    	aspect=json.aspect;
+		    	window.localStorage.setItem('aspect',aspect);
+		    	size=json.size;
+		    	window.localStorage.setItem('size',size);
+		    	window.localStorage.setItem('background',null);
+		    	console.log('load drawing - aspect:'+aspect+' size:'+size);
+		    	initialise();
+			}
+			else if(method=='merge') {
+		    	name='';
+		    	window.localStorage.setItem('name','');
+			}
+			for(var i=0;i<json.graphs.length;i++) {
 		        console.log('add graph '+json.graphs[i].type);
 		        if(method=='ref') {
 		            if(json.graphs[i].type=='dim') continue; // skip dimensions
@@ -260,16 +254,51 @@ id('fileChooser').addEventListener('change',function() {
 		        console.log('add stamp '+json.stamps[i].name);
 		        request=stampStore.add(json.stamps[i]);
 		    }
+        }
+		else {
+			var url=URL.createObjectURL(file);
+			console.log('image name:'+file.name);
+			if(method=='background') {
+				console.log('add background image');
+				var img=new Image();
+				img.onload=function() {
+					var ratioH=img.width/dwg.w;
+					var ratioV=img.height/dwg.h;
+					image.w=dwg.w;
+					image.h=dwg.h;
+					if(ratioH>ratioV) image.h=dwg.w*img.height/img.width; // fit image to paper width
+					else image.w=dwg.h*img.width/img.height; // fit image to paper height
+					canvas.width=image.pw=image.w/f;
+					canvas.height=image.ph=image.h/f;
+					console.log('image size: '+img.width+'x'+img.height+' change to '+image.pw+'x'+image.ph);
+					ctx.drawImage(img,0,0,image.pw,image.ph);
+					var html="<image x='0' y='0' width='"+image.w+"' height='"+image.h+"' xlink:href="+url+">";
+					id('background').innerHTML+=html; // draw image in background SVG to fit paper size
+				}
+				img.src=url;
+			}
+			else { // load selected stamp
+				console.log("add stamp "+file.name);
+				var stamp={'name':file.name,'svg':data};
+				var request=stampStore.add(stamp);
+				request.onsuccess=function(e) {
+			    	var n=request.result;
+					console.log("stamp added to database: "+n);
+				};
+				request.onerror=function(e) {console.log("error adding stamps");};
+			}
 		}
 		transaction.oncomplete=function() {
-		    console.log('drawing imported - load & draw');
+		    console.log('loaded');
             if(method!='stamp') load();
 		}
     });
     loader.addEventListener('error',function(event) {
         console.log('load failed - '+event);
     });
-    loader.readAsText(file);
+    // loader.readAsText(file);
+    if(method=='background') loader.readAsDataURL(file);
+    else loader.readAsText(file);
     showDialog('loadDialog',false);
 })
 id('save').addEventListener('click',function() {
@@ -279,52 +308,86 @@ id('save').addEventListener('click',function() {
 });
 id('confirmSave').addEventListener('click',function() {
     name=id('saveName').value;
-    console.log('save data to file: '+name+'.json');
+    if(!name) {
+    	alert('enter a file name');
+    	return;
+    }
+    console.log('save data to file: '+name);
     showDialog('saveDialog',false);
-    // VARY ACCORDING TO SAVE TYPE - saveSVG() OR savePNG()
-    fileName=name+".json";
-    window.localStorage.setItem('name',name);
-    var data={};
-    data.aspect=aspect;
-    data.size=size;
-    data.graphs=[];
-    data.stamps=[];
-    // var order=drawOrder();
-    var transaction=db.transaction(['graphs','stamps']);
-    var request=transaction.objectStore('graphs').openCursor();
-    request.onsuccess=function(event) {
-        var cursor=event.target.result;
-        if(cursor) {
-            // console.log('graph: '+cursor.value.id);
-            // var index=order.indexOf(Number(cursor.value.id)); // save graphs in drawing order
-            // console.log('index: '+index);
-            delete cursor.value.id;
-            data.graphs.push(cursor.value);
-            // data.graphs[index]=cursor.value;
-            cursor.continue();
-        }
-        else {
-            console.log('save '+data.graphs.length+' graphs');
-            request=transaction.objectStore('stamps').openCursor();
-            request.onsuccess=function(event) {
-                cursor=event.target.result;
-                if(cursor) {  // SAVE WITHOUT id's ????
-                    console.log('stamp: '+cursor.value.name);
-                    delete cursor.value.id; // SHOULDN'T NEED THIS
-                    data.stamps.push(cursor.value);
-                    cursor.continue();
-                }
-                else {
-                    console.log('save '+data.stamps.length+' stamps');
-                }
-            }
-        }
+    var method='data';
+    if(id('data').checked) {
+    	fileName=name+".json";
+    	window.localStorage.setItem('name',name);
+    	var data={};
+    	data.aspect=aspect;
+    	data.size=size;
+    	data.graphs=[];
+    	data.stamps=[];
+    	var transaction=db.transaction(['graphs','stamps']);
+    	var request=transaction.objectStore('graphs').openCursor();
+    	request.onsuccess=function(event) {
+        	var cursor=event.target.result;
+        	if(cursor) {
+            	delete cursor.value.id;
+            	data.graphs.push(cursor.value);
+            	cursor.continue();
+        	}
+        	else {
+            	console.log('save '+data.graphs.length+' graphs');
+            	request=transaction.objectStore('stamps').openCursor();
+            	request.onsuccess=function(event) {
+                	cursor=event.target.result;
+                	if(cursor) {  // SAVE WITHOUT id's ????
+                    	console.log('stamp: '+cursor.value.name);
+                    	delete cursor.value.id; // SHOULDN'T NEED THIS
+                    	data.stamps.push(cursor.value);
+                    	cursor.continue();
+                	}
+                	else {
+                    	console.log('save '+data.stamps.length+' stamps');
+                	}
+            	}
+        	}
+    	}
+    	transaction.oncomplete=function() {
+        	console.log('ready to save drawing data to file');
+        	var json=JSON.stringify(data);
+        	download(json,fileName,'text/plain');
+    	}
     }
-    transaction.oncomplete=function() {
-        console.log('ready to save drawing data to file');
-        var json=JSON.stringify(data);
-        download(json,fileName,'text/plain');
+    else if(id('print').checked) {
+    	method='print';
+    	fileName=name+'.svg';
+    	var svg=id('drawing').innerHTML;
+    	download(svg,fileName,'data:image/svg+xml');
     }
+    else if(id('image').checked) {
+    	method='image';
+    	fileName=name+'.png';
+    	var canvas=id('canvas');
+    	var img=document.createElement('img'); // new Image();
+    	document.body.appendChild(img);
+    	var svg=id('svg').cloneNode(true); // copy svg
+    	var s=image.pw/(image.w/f); // scale svg to match original image size
+    	svg.setAttribute('transform','scale('+s+')');
+    	var xml=(new XMLSerializer).serializeToString(svg);
+    	img.onload=function() {
+    		w=img.clientWidth;
+    		h=img.clientHeight;
+    		console.log('svg image.src: '+img.src+' and size: '+w+'x'+h);
+			ctx.drawImage(img,0,0,w,h);
+			var png_img=canvas.toDataURL("image/png");
+			var a=document.createElement('a');
+	   		a.download=fileName;
+    		a.href=canvas.toDataURL('image/png');
+    		document.body.appendChild(a);
+			a.click();
+   			document.body.removeChild(img);
+   			alert('file '+fileName+" saved to downloads folder");
+    	}
+    	img.src='data:image/svg+xml,'+encodeURIComponent(xml);
+    }
+    console.log('SAVED - method: '+method);
 });
 id('zoomInButton').addEventListener('click',function() {
     prompt('ZOOM IN');
@@ -387,6 +450,7 @@ id('ovalButton').addEventListener('click',function() { // OVAL/CIRCLE
 })
 id('arcButton').addEventListener('click', function() {
    mode='arc';
+   prompt('ARC: drag from centre');
    // id('tools').style.display='none';
 });
 id('textButton').addEventListener('click',function() {
@@ -396,10 +460,9 @@ id('textButton').addEventListener('click',function() {
 });
 id('text').addEventListener('change',function() {
     var text=event.target.value;
-    if(elID) { // change selected text
-        element=id(elID);
+    if(element) { // change selected text
         element.innerHTML=text;
-        updateGraph(elID,['text',text]);
+        updateGraph(element.id,['text',text]);
     }
     else {
         console.log('add text '+text);
@@ -452,7 +515,7 @@ id('deleteButton').addEventListener('click',function() {
                 pts+=points.x+','+points.y+' ';
             }
             element.setAttribute('points',pts);
-            updateGraph(elID,['points',pts]);
+            updateGraph(element.id,['points',pts]);
             cancel();
         }
         else { // remove individual point
@@ -465,16 +528,16 @@ id('deleteButton').addEventListener('click',function() {
         }
     }
     prompt('REMOVE');
-    for(var i=0;i<selection.length;i++) console.log('delete '+selection[i]);
-    console.log('element is '+elID);
+    // for(var i=0;i<selection.length;i++) console.log('delete '+selection[i]);
+    // console.log('element is '+element.id);
     showDialog('removeDialog',true);
 });
 id('confirmRemove').addEventListener('click',function() { // complete deletion
     if(selection.length>0) {
         while(selection.length>0) remove(selection.pop());
     }
-    else remove(elID);
-    element=elID=null;
+    else remove(element.id);
+    element=null;
     id('handles').innerHTML=''; // remove edit handles...
     id('selection').innerHTML=''; // ...selection shading,...
     id('blueBox').setAttribute('width',0); // ...and text outline...
@@ -491,7 +554,7 @@ id('backButton').addEventListener('click',function() {
     else prompt('PUSH BACK');
     var previousID=previousElement.getAttribute('id');
     id('dwg').insertBefore(element,previousElement); // move back in drawing...
-    swopGraphs(previousID,elID); // ...and in database
+    swopGraphs(previousID,element.id); // ...and in database
     // drawOrder(); // update drawing order
 });
 id('forwardButton').addEventListener('click',function() {
@@ -503,10 +566,10 @@ id('forwardButton').addEventListener('click',function() {
     else prompt('PULL FORWARD');
     var nextID=nextElement.getAttribute('id');
     id('dwg').insertBefore(nextElement,element); // bring forward in drawing.
-    swopGraphs(elID,nextID); // ...and in database
+    swopGraphs(element.id,nextID); // ...and in database
     // drawOrder(); // update drawing order
 });
-id('moveButton').addEventListener('click',function() {
+/* id('moveButton').addEventListener('click',function() {
     console.log('move '+type(element));
     if(type(element)=='dim') return; // cannot move dimensions
     id('moveRight').value=id('moveDown').value=id('moveDist').value=id('moveAngle').value=0;
@@ -526,7 +589,7 @@ id('confirmMove').addEventListener('click',function() {
         moveX=moveD*Math.cos(moveA);
         moveY=moveD*Math.sin(moveA);
     }
-    if(selection.length<1) selection.push(elID);
+    if(selection.length<1) selection.push(element.id);
     // REMEMBER POSITIONS/POINTS/SPINS/FLIPS FOR ALL SELECTED ELEMENTS
     re('member');
     if(selectedPoints.length>0) { // move all selected points in a line or shape...
@@ -536,7 +599,7 @@ id('confirmMove').addEventListener('click',function() {
             points[n].x+=moveX;
             points[n].y+=moveY;
         }
-        updateGraph(elID,['points',element.getAttribute('points')]);
+        updateGraph(element.id,['points',element.getAttribute('points')]);
     }
     else while(selection.length>0) { // or move all selected elements
         element=id(selection.pop());
@@ -545,14 +608,14 @@ id('confirmMove').addEventListener('click',function() {
     showDialog('moveDialog',false);
     // DONE BY re-member - id('undoButton').style.display='block';
     cancel();
-});
+});*/
 id('spinButton').addEventListener('click',function() {
     id('spinAngle').value=0;
     showDialog('spinDialog',true);
 });
 id('confirmSpin').addEventListener('click',function() {
     var spin=Number(id('spinAngle').value);
-    if(selection.length<1) selection.push(elID);
+    if(selection.length<1) selection.push(element.id);
     console.log('spin '+selection.length+' elements by '+spin+' degrees');
     re('member');
     var axis=null;
@@ -580,7 +643,7 @@ id('confirmSpin').addEventListener('click',function() {
     if(axis) console.log('axis: '+axis.x+','+axis.y); else console.log('no axis');
     while(selection.length>0) {
         element=id(selection.pop());
-        elID=element.id;
+        // elID=element.id;
         console.log('spin '+type(element));
         var ox=0; // element origin
         var ox=0;
@@ -609,7 +672,7 @@ id('confirmSpin').addEventListener('click',function() {
         netSpin+=spin;
         console.log('to '+netSpin);
         element.setAttribute('spin',netSpin);
-        updateGraph(elID,['spin',netSpin]);
+        updateGraph(element.id,['spin',netSpin]);
         setTransform(element);
         refreshNodes(element); // if not already done after move() or setTransform()
     }
@@ -617,19 +680,17 @@ id('confirmSpin').addEventListener('click',function() {
     cancel();
 })
 id('flipButton').addEventListener('click',function() {
-    if(type(element)=='dim') return; // cannot flip dimensions
-    id('copyLabel').style.color=(anchor)?'white':'gray'; // REDO WITHOUT ANCHOR
-    id('copy').disabled=!anchor;
+    // if(type(element)=='dim') return; // cannot flip dimensions
+    // id('copyLabel').style.color=(anchor)?'white':'gray'; // REDO WITHOUT ANCHOR
+    // id('copy').disabled=!anchor;
     console.log('show flip dialog');
-    id('copy').checked=false;
+    // id('copy').checked=false;
     showDialog('flipDialog',true);
 });
 id('flipOptions').addEventListener('click',function() {
     var opt=Math.floor((event.clientX-parseInt(id('flipDialog').offsetLeft)+5)/32);
     console.log('click on '+opt); // 0: horizontal; 1: vertical
-    var copy=id('copy').checked;
     var axis={};
-    // var box=null;
     var elNodes=null;
     var el=id(selection[0]);
     var box=getBounds(el);
@@ -648,188 +709,56 @@ id('flipOptions').addEventListener('click',function() {
     }
     console.log('overall box '+minX+'-'+maxX+'x'+minY+'-'+maxY);
     // flip in-situ around mid-point
-    copy=false;
+    // copy=false;
     axis.x=(minX+maxX)/2;
     axis.y=(minY+maxY)/2;
     console.log('axis: '+axis.x+','+axis.y);
     re('member');
     while(selection.length>0) { // for each selected item...
-        elID=selection.shift();
-        el=id(elID);
+    	el=id(selection.shift());
+        // elID=selection.shift();
+        // el=id(elID);
         console.log('flip '+type(el)+' element '+el.id);
         switch (type(el)) {
             case 'line': // reverse x-coord of each point and each node
             case 'shape':
                 var points=el.points;
-                if(copy) var pts=''; // new points list as string
                 for(i=0;i<points.length;i++) {
                     if(opt<1) {
                         dx=points[i].x-axis.x;
-                        if(copy) pts+=(axis.x-dx)+' '+points[i].y+' ';
-                        else points[i].x=axis.x-dx;
+                        points[i].x=axis.x-dx;
                     }
                     else {
                         dy=points[i].y-axis.y;
-                        if(copy) pts+=Number(points[i].x)+','+(Number(axis.y)-dy)+' ';
-                        else points[i].y=axis.y-dy;
+                        points[i].y=axis.y-dy;
                     }
                 }
                 console.log('pts: '+pts);
-                if(copy) {
-                    console.log('create copy of element '+elID);
-                    var g={}; // new graph for copy/copies
-                    g.type=type(el); // line or shape
-                    g.points=pts;
-                    g.spin=0;
-                    g.stroke=el.getAttribute('stroke');
-                    g.lineW=el.getAttribute('stroke-width');
-                    g.lineStyle=getLineStyle(el);
-                    g.fill=el.getAttribute('fill');
-                    var o=el.getAttribute('fill-opacity');
-                    g.opacity=(o)?o:1;
-                    addGraph(g);
-                }
-                else {
-                    updateGraph(elID,['points',el.getAttribute('points')]);
-                    refreshNodes(el);
-                }
+                updateGraph(element.id,['points',el.getAttribute('points')]);
+                refreshNodes(el);
                 break;
             case 'box':
-                if(copy) {
-                    var g={}; // new graph for copy/copies
-                    g.type='box';
-                    g.width=parseInt(el.getAttribute('width'));
-                    g.height=parseInt(el.getAttribute('height'));
-                    var left=parseInt(el.getAttribute('x'));
-                    var top=parseInt(el.getAttribute('y'));
-                    var right=left+g.width;
-                    var bottom=top+g.height;
-                    console.log('box '+left+'-'+right+'x'+top+'-'+bottom);
-                    if(opt<1) { // mirror copy left or right...
-                        dx=right-axis.x;
-                        g.x=axis.x-dx;
-                        g.y=top;
-                    }
-                    else { // ...above or below
-                        g.x=left;
-                        dy=bottom-axis.y;
-                        g.y=axis.y-dy;
-                    }
-                    var request=db.transaction('graphs').objectStore('graphs').get(Number(el.id));
-                    request.onsuccess=function(event) {
-                        var graph=request.result;
-                        console.log('retrieved graph '+graph.type);
-                        g.radius=graph.radius;
-                        g.stroke=graph.stroke;
-                        g.lineW=graph.lineW;
-                        g.lineStyle=graph.lineStyle;
-                        g.fill=graph.fill;
-                        g.opacity=graph.opacity;
-                        addGraph(g);
-                    }
-                    request.onerror=function(event) {
-                        console.log('get failed');
-                    }
-                }
-                else { // no action if flip in-situ unless has spin
-                    var spin=parseInt(el.getAttribute('spin'));
-                    if(spin!=0) {
+                var spin=parseInt(el.getAttribute('spin'));
+                if(spin!=0) {
                         spin*=-1;
                         el.setAttribute('spin',spin);
                         setTransform(el);
-                        updateGraph(elID['spin',spin]);
+                        updateGraph(element.id['spin',spin]);
                     }
-                }
                 break;
             case 'oval':
-                if(copy) {
-                    var g={};
-                    g.type='oval';
-                    if(opt<1) { // mirror copy left or right...
-                        dx=parseInt(el.getAttribute('cx'))-axis.x;
-                        g.cx=axis.x-dx;
-                        g.cy=parseInt(el.getAttribute('cy'));
-                    }
-                    else { // ...above or below
-                        g.cx=parseInt(el.getAttribute('cx'));
-                        dy=parseInt(el.getAttribute('cy'))-axis.y;
-                        g.cy=axis.y-dy;
-                    }
-                    var request=db.transaction('graphs').objectStore('graphs').get(Number(el.id));
-                    request.onsuccess=function(event) {
-                        var graph=request.result;
-                        console.log('retrieved graph '+graph.type);
-                        g.rx=graph.rx;
-                        g.ry=graph.ry;
-                        g.stroke=graph.stroke;
-                        g.lineW=graph.lineW;
-                        g.lineStyle=graph.lineStyle;
-                        g.fill=graph.fill;
-                        g.opacity=graph.opacity;
-                        addGraph(g);
-                    }
-                    request.onerror=function(event) {
-                        console.log('get failed');
-                    }
-                }
-                else { // no action if flip in-situ unless has spin
-                    var spin=parseInt(el.getAttribute('spin'));
-                    if(spin!=0) {
+                var spin=parseInt(el.getAttribute('spin'));
+                if(spin!=0) {
                         spin*=-1;
                         el.setAttribute('spin',spin);
                         setTransform(el);
-                        updateGraph(elID['spin',spin]);
+                        updateGraph(element.id['spin',spin]);
                     }
-                }
                 break;
             case 'arc':
                 var d=el.getAttribute('d');
                 getArc(d);
-                if(copy) {
-                    g={};
-                    g.type='arc';
-                    if(opt<1) { // mirror copy left or right...
-                        dx=arc.cx-axis.x;
-                        g.cx=axis.x-dx;
-                        g.cy=arc.cy;
-                        dx=arc.x1-axis.x;
-                        g.x1=axis.x-dx;
-                        g.y1=arc.y1;
-                        dx=arc.x2-axis.x;
-                        g.x2=axis.x-dx;
-                        g.y2=arc.y2;
-                    }
-                    else { // ...above or below
-                        g.cx=arc.cx;
-                        dy=arc.cy-axis.y;
-                        g.cy=axis.y-dy;
-                        g.x1=arc.x1;
-                        dy=arc.y1-axis.y;
-                        g.y1=axis.y-dy;
-                        g.x2=arc.x2;
-                        dy=arc.y2-axis.y;
-                        g.y2=axis.y-dy;
-                    }
-                    g.r=arc.r;
-                    g.major=arc.major;
-                    g.sweep=(arc.sweep<1)? 1:0;
-                    var request=db.transaction('graphs').objectStore('graphs').get(Number(el.id));
-                    request.onsuccess=function(event) {
-                        var graph=request.result;
-                        console.log('retrieved graph '+graph.type);
-                        g.stroke=graph.stroke;
-                        g.lineW=graph.lineW;
-                        g.lineStyle=graph.lineStyle;
-                        g.fill=graph.fill;
-                        g.opacity=graph.opacity;
-                        addGraph(g);
-                    }
-                    request.onerror=function(event) {
-                        console.log('get failed');
-                    }
-                }
-                else { // flip in-situ
-                    if(opt<1) { // flip left-right
+                if(opt<1) { // flip left-right
                         dx=arc.cx-axis.x;
                         arc.cx=axis.x-dx;
                         dx=arc.x1-axis.x;
@@ -837,7 +766,7 @@ id('flipOptions').addEventListener('click',function() {
                         dx=arc.x2-axis.x;
                         arc.x2=axis.x-dx;
                     }
-                    else {
+                else {
                         dy=arc.cy-axis.y;
                         arc.cy=axis.y-dy;
                         dy=arc.y1-axis.y;
@@ -845,124 +774,59 @@ id('flipOptions').addEventListener('click',function() {
                         dy=arc.y2-axis.y;
                         arc.y2=axis.y-dy;
                     }
-                    arc.sweep=(arc.sweep<1)? 1:0;
-                    updateGraph(elID,['cx',arc.cx,'x1',arc.x1,'x2',arc.x2,'sweep',arc.sweep]);
-                    d="M"+arc.cx+","+arc.cy+" M"+arc.x1+","+arc.y1+" A"+arc.r+","+arc.r+" 0 "+arc.major+","+arc.sweep+" "+arc.x2+","+arc.y2;
-                    element.setAttribute('d',d);
-                    refreshNodes(el);
-                }
+                arc.sweep=(arc.sweep<1)? 1:0;
+                updateGraph(element.id,['cx',arc.cx,'x1',arc.x1,'x2',arc.x2,'sweep',arc.sweep]);
+                d="M"+arc.cx+","+arc.cy+" M"+arc.x1+","+arc.y1+" A"+arc.r+","+arc.r+" 0 "+arc.major+","+arc.sweep+" "+arc.x2+","+arc.y2;
+                element.setAttribute('d',d);
+                refreshNodes(el);
                 break;
             case 'text':
-                if(copy) {
-                    var g={};
-                    g.type='text';
-                    // box=getBounds(el);
-                    if(opt<1) { // mirror copy left or right...
-                        dx=parseInt(el.getAttribute('x'))-axis.x;
-                        g.x=axis.x-dx;
-                        g.y=parseInt(el.getAttribute('y'));
-                        g.flip=parseInt(el.getAttribute('flip'))^1;
-                    }
-                    else { // ...above or below
-                        g.x=parseInt(el.getAttribute('x'));
-                        dy=parseInt(el.getAttribute('y'))-axis.y;
-                        g.y=axis.y-dx;
-                        g.flip=parseInt(el.getAttribute('flip'))^2;
-                    }
-                    var request=db.transaction('graphs').objectStore('graphs').get(Number(elID));
-                    request.onsuccess=function(event) {
-                        var graph=request.result;
-                        console.log('retrieved graph '+graph.type);
-                        g.text=graph.text;
-                        g.textSize=graph.textSize;
-                        g.textStyle=graph.textStyle;
-                        g.fill=graph.fill;
-                        g.opacity=graph.opacity;
-                        addGraph(g);
-                    }
-                    request.onerror=function(event) {
-                        console.log('get failed');
-                    }
-                }
-                else { // flip in-situ
-                    showDialog('textDialog',false);
-                    var flip=parseInt(el.getAttribute('flip'));
-                    if(opt<1) { // flip left-right
+        		showDialog('textDialog',false);
+                var flip=parseInt(el.getAttribute('flip'));
+                if(opt<1) { // flip left-right
                         console.log('current flip: '+flip);
                         flip^=1; // toggle horizontal flip;
                         dx=parseInt(el.getAttribute('x'))-axis.x;
                         el.setAttribute('x',(axis.x-dx));
                     }
-                    else { // flip top-bottom
+                else { // flip top-bottom
                         flip^=2; // toggle vertical flip
                         dy=parseInt(el.getAttribute('y'))-axis.y;
                         el.setAttribute('y',(axis.y-dy));
                     }
-                    el.setAttribute('flip',flip);
-                    setTransform(el);
-                    updateGraph(elID,['flip',flip]);
-                }
+                el.setAttribute('flip',flip);
+                setTransform(el);
+                updateGraph(element.id,['flip',flip]);
                 break;
             case 'stamp':
-                if(copy) {
-                    var g={};
-                    g.type='stamp';
-                    if(opt<1) { // mirror copy left or right...
-                        g.x=axis.x-dx;
-                        g.y=parseInt(el.getAttribute('y'));
-                        dx=parseInt(el.getAttribute('x'))-axis.x;
-                        g.flip=parseInt(el.getAttribute('flip'))^1;
-                    }
-                    else { // ...above or below
-                        g.x=parseInt(el.getAttribute('x'));
-                        dy=parseInt(el.getAttribute('y'))-axis.y;
-                        g.flip=parseInt(el.getAttribute('flip'))^2; // toggle vertical flip
-                    }
-                    var request=db.transaction('graphs').objectStore('graphs').get(Number(elID));
-                    request.onsuccess=function(event) {
-                        var graph=request.result;
-                        console.log('retrieved graph '+graph.type+' stamp no. '+graph.no);
-                        g.no=graph.no;
-                        g.width=graph.width;
-                        g.height=graph.height;
-                        addGraph(g);
-                    }
-                    request.onerror=function(event) {
-                        console.log('get failed');
-                    }
-                }
-                else { // flip in-situ
-                    var flip=parseInt(el.getAttribute('flip'));
-                    // console.log(elNodes.length+' nodes');
-                    if(opt<1) { // flip left-right
+                var flip=parseInt(el.getAttribute('flip'));
+                if(opt<1) { // flip left-right
                         console.log('current flip: '+flip);
                         flip^=1; // toggle horizontal flip;
                         dx=parseInt(el.getAttribute('ax'))-axis.x;
                         el.setAttribute('ax',(axis.x-dx));
                     }
-                    else { // flip top-bottom
+                else { // flip top-bottom
                         flip^=2; // toggle vertical flip
                         dy=parseInt(el.getAttribute('ay'))-axis.y;
                         el.setAttribute('ay',(axis.y-dy));
                     }
-                    refreshNodes(el);
-                    w=parseInt(el.getAttribute('x'));
-                    h=parseInt(el.getAttribute('y'));
-                    var hor=flip&1;
-                    var ver=flip&2;
-                    var t='translate('+(hor*w)+','+(ver*h/2)+') ';
-                    t+='scale('+((hor>0)? -1:1)+','+((ver>0)? -1:1)+')';
-                    // ADD rotate() FOR SPIN
-                    el.setAttribute('flip',flip);
-                    el.setAttribute('transform',t);
-                    updateGraph(elID,['flip',flip]);
-                }
+                refreshNodes(el);
+                w=parseInt(el.getAttribute('x'));
+                h=parseInt(el.getAttribute('y'));
+                var hor=flip&1;
+                var ver=flip&2;
+                var t='translate('+(hor*w)+','+(ver*h/2)+') ';
+                t+='scale('+((hor>0)? -1:1)+','+((ver>0)? -1:1)+')';
+                // ADD rotate() FOR SPIN
+                el.setAttribute('flip',flip);
+                el.setAttribute('transform',t);
+                updateGraph(element.id,['flip',flip]);
                 break;
         }
     }
     cancel();
     showDialog('flipDialog',false);
-    // mode='select';
 });
 id('alignButton').addEventListener('click',function() {
     showDialog('alignDialog',true);
@@ -1030,6 +894,84 @@ id('alignOptions').addEventListener('click',function() {
     // selection=[];
     // id('selection').innerHTML='';
 });
+id('copyButton').addEventListener('click',function() {
+	copy.active=true; // copy is active
+	copy.elements=[]; // build list of copy id's
+	console.log('copy '+selection.length+' elements - offsets: '+copy.x+','+copy.y);
+	if((copy.x==0)&&(copy.y==0)) prompt('COPY: drag to position');
+	else prompt('COPY: tap or drag');
+	for(var i=0;i<selection.length;i++) {
+		element=id(selection[i]);
+		var g={};
+		g.type=type(element);
+		if(g.type!='stamp') { // stamps don't have style
+                g.stroke=element.getAttribute('stroke');
+                g.lineW=element.getAttribute('stroke-width');
+                g.lineStyle=getLineStyle(element);
+                g.fill=element.getAttribute('fill');
+                var val=element.getAttribute('fill-opacity');
+                if(val) g.opacity=val;
+            }
+            g.spin=element.getAttribute('spin');
+            switch(g.type) {
+                case 'line':
+                    g.points='';
+                    for(var p=0;p<element.points.length;p++) {
+                        g.points+=element.points[p].x+copy.x+',';
+                        g.points+=element.points[p].y+copy.y+' ';
+                    }
+                    break;
+                case 'box':
+                    g.x=Number(element.getAttribute('x'))+copy.x;
+                    g.y=Number(element.getAttribute('y'))+copy.y;
+                    g.width=Number(element.getAttribute('width'));
+                    g.height=Number(element.getAttribute('height'));
+                    g.radius=Number(element.getAttribute('rx'));
+                    console.log('copy '+g.type+' at '+g.x+','+g.y);
+                    break;
+                case 'oval':
+                    g.cx=Number(element.getAttribute('cx'))+copy.x;
+                    g.cy=Number(element.getAttribute('cy'))+copy.y;
+                    g.rx=Number(element.getAttribute('rx'));
+                    g.ry=Number(element.getAttribute('ry'));
+                    console.log('copy '+g.type+' at '+g.cx+','+g.cy);
+                    break;
+                case 'arc':
+                    var d=element.getAttribute('d');
+                    getArc(d);
+                    g.cx=arc.cx+copy.x;
+                    g.cy=arc.cy+copy.y;
+                    g.x1=arc.x1+copy.x;
+                    g.y1=arc.y1+copy.y;
+                    g.x2=arc.x2+copy.x;
+                    g.y2=arc.y2+copy.y;
+                    g.r=arc.r;
+                    g.major=arc.major;
+                    g.sweep=arc.sweep;
+                    console.log('copy '+g.type+' at '+g.cx+','+g.cy);
+                    break;
+                case 'text':
+                    g.x=Number(element.getAttribute('x'))+copy.x;
+                    g.y=Number(element.getAttribute('y'))+copy.y;
+                    g.flip=Number(element.getAttribute('flip'));
+                    g.text=element.innerHTML;
+                    g.textSize=Number(element.getAttribute('font-size'));
+                    var style=element.getAttribute('font-style');
+                    g.textStyle=(style=='italic')?'italic':'fine';
+                    if(element.getAttribute('font-weight')=='bold') g.textStyle='bold';
+                    break;
+                case 'stamp':
+                    g.x=Number(element.getAttribute('x'))+copy.x;
+                    g.y=Number(element.getAttribute('y'))+copy.y;
+                    g.flip=Number(element.getAttribute('flip'));
+                    g.name=element.getAttribute('href').substr(1); // strip off leading #
+                    break;
+            }
+            addGraph(g);
+	}
+	mode='move';
+});
+/*
 id('doubleButton').addEventListener('click',function() {
     console.log(selection.length+' elements selected: '+elID);
     if(selection.length!=1) return; // can only double single selected...
@@ -1399,6 +1341,7 @@ id('confirmRepeat').addEventListener('click',function() {
     showDialog('repeatDialog',false);
     cancel();
 });
+*/
 id('filletButton').addEventListener('click',function() {
     if(type(element!='box')) return; // can only fillet box corners
     id('filletR').value=parseInt(element.getAttribute('rx'));
@@ -1408,7 +1351,7 @@ id('confirmFillet').addEventListener('click',function() {
     re('member');
     var r=parseInt(id('filletR').value);
     element.setAttribute('rx',r);
-    updateGraph(elID,['radius',r]);
+    updateGraph(element.id,['radius',r]);
     showDialog('filletDialog',false);
     cancel();
 });
@@ -1498,8 +1441,8 @@ id('line').addEventListener('click',function() {
 id('lineType').addEventListener('change',function() {
     var type=event.target.value;
     console.log('line type: '+type);
-    if(elID) { // change selected element
-        element=id(elID);
+    if(element) { // change selected element
+        // element=id(elID);
         w=parseInt(element.getAttribute('stroke-width'));
         switch(type) {
             case 'none':
@@ -1515,8 +1458,8 @@ id('lineType').addEventListener('change',function() {
         console.log('set element '+element.id+' line style to '+type);
         element.setAttribute('stroke-dasharray',val);
         element.setAttribute('stroke',(type=='none')?'none':lineCol);
-        updateGraph(elID,['lineStyle',type]);
-        updateGraph(elID,['stroke',(type=='none')?'none':lineCol]);
+        updateGraph(element.id,['lineStyle',type]);
+        updateGraph(element.id,['stroke',(type=='none')?'none':lineCol]);
     }
     else { // change default line type
         lineType=type;
@@ -1525,8 +1468,8 @@ id('lineType').addEventListener('change',function() {
 });
 id('lineWidth').addEventListener('change',function() {
     var val=event.target.value;
-    if(elID) { // change selected element
-        element=id(elID);
+    if(element) { // change selected element
+        // element=id(elID);
         var lw=val;
         element.setAttribute('stroke-width',lw);
         if(element.getAttribute('stroke-dasharray')) element.setAttribute('stroke-dasharray',lw+' '+lw);
@@ -1540,8 +1483,8 @@ id('lineWidth').addEventListener('change',function() {
 });
 id('textFont').addEventListener('change',function() {
     var val=event.target.value;
-    if(elID) { // change selected text element
-        element=id(elID);
+    if(element) { // change selected text element
+        // element=id(elID);
         if(type(element)=='text') {
             switch(val) {
                 case 'sans':
@@ -1563,8 +1506,8 @@ id('textFont').addEventListener('change',function() {
 });
 id('textSize').addEventListener('change',function() {
     var val=event.target.value;
-    if(elID) { // change selected text element
-        element=id(elID);
+    if(element) { // change selected text element
+        // element=id(elID);
         if(type(element)=='text') {
             element.setAttribute('font-size',val);
             // console.log('set element '+element.id+' text size to '+val);
@@ -1578,8 +1521,8 @@ id('textSize').addEventListener('change',function() {
 });
 id('textStyle').addEventListener('change',function() {
     var val=event.target.value;
-    if(elID) { // change selected text element
-        element=id(elID);
+    if(element) { // change selected text element
+        // element=id(elID);
         if(type(element)=='text') {
             switch(val) {
                 case 'fine':
@@ -1603,8 +1546,8 @@ id('textStyle').addEventListener('change',function() {
 });
 id('lineCol').addEventListener('change',function() {
     var val=id('lineCol').value;
-    if(elID) { // change selected element
-        element=id(elID);
+    if(element) { // change selected element
+        // element=id(elID);
         if(type(element)=='text') { // text is filled not stroked
         console.log('change text colour to '+val);
             element.setAttribute('fill',val);
@@ -1622,43 +1565,47 @@ id('lineCol').addEventListener('change',function() {
     // id('line').style.backgroundColor=val;
     // ADD CODE
 });
-id('fillType').addEventListener('change',function() {
+id('fillType').addEventListener('click',function() {
     var type=event.target.value;
     console.log('fill type: '+type);
-    if(elID) { // change selected element
-        element=id(elID);
+    if(element) { // change selected element
+        // element=id(elID);
         console.log('set element '+element.id+' fill style to '+type);
+        if(type=='pattern') {
+    		showDialog('patternMenu',true);
+    		return;
+    	}
         element.setAttribute('fill',(type=='none')?'none':fillCol);
-        updateGraph(elID,['fillType',type]);
-        updateGraph(elID,['fill',(type=='none')?'none':lineCol]);
+        updateGraph(element.id,['fillType',type,'fill',(type=='none')?'none':fillCol]);
+        // updateGraph(elID,['fill',(type=='none')?'none':lineCol]);
     }
-    else { // change default line type
+    else { // change default fillType type
         fillType=type;
     }
     id('fill').style.background=(type=='none')?'none':fillCol;
 });
 id('fillCol').addEventListener('change',function() {
     var val=id('fillCol').value;
-    if(elID) { // change selected element
-        element=id(elID);
+    if(element) { // change selected element
+        // element=id(elID);
         // var fillCol=val;
         element.setAttribute('fill',val);
         updateGraph(element.id,['fill',val]);
         id('fill').style.backgroundColor=val;
     }
-    else { // change default line width
+    else { // change default fill colour
         fillCol=val;
-        id('fill').value=val;
     }
+    id('fillCol').value=val;
 });
 id('opacity').addEventListener('change',function() {
     var val=event.target.value;
     console.log('opacity: '+val);
-    if(elID) { // change selected element
-        element=id(elID);
+    if(element) { // change selected element
+        // element=id(elID);
         element.setAttribute('stroke-opacity',val);
         element.setAttribute('fill-opacity',val);
-        updateGraph(elID,['opacity',val]);
+        updateGraph(element.id,['opacity',val]);
     }
     else opacity=val; // change default opacity
     id('fill').style.opacity=val;
@@ -1666,18 +1613,25 @@ id('opacity').addEventListener('change',function() {
 id('blur').addEventListener('change',function() {
     var val=event.target.value;
     console.log('blur: '+val);
-    if(elID) { // change selected element
-        element=id(elID);
+    if(element) { // change selected element
+        // element=id(elID);
         console.log('set blur filter to '+val);
         if(val>0) element.setAttribute('filter','url(#blur'+val+')');
         else element.setAttribute('filter','none');
-        updateGraph(elID,['blur',val]);
+        updateGraph(element.id,['blur',val]);
     }
     else blur=val; // change default blur
     // id('fill').style.opacity=val;
 });
+id('patternMenu').addEventListener('click',function(event) {
+	x=Math.floor((event.clientX-56)/32);
+	y=Math.floor((event.clientY-12)/32);
+	console.log('set element fill to pattern'+y+x);
+	element.setAttribute('fill','url(#pattern'+y+x+')');
+	updateGraph(element.id,['fillType','pattern','fill','url(#pattern'+y+x+')'])
+});
 // POINTER DOWN
-id('graphic').addEventListener('pointerdown',function() {
+id('drawing').addEventListener('pointerdown',function() {
     console.log('pointer down - mode is '+mode);
     re('wind'); // WAS id('undoButton').style.display='none';
     event.preventDefault();
@@ -1717,7 +1671,7 @@ id('graphic').addEventListener('pointerdown',function() {
                 var pts=points[0].x+','+points[0].y+' '+x+','+y+' ';
                 for(var i=1;i<points.length;i++) pts+=points[i].x+','+points[i].y+' ';
                 element.setAttribute('points',pts);
-                updateGraph(elID,['points',pts]);
+                updateGraph(element.id,['points',pts]);
                 refreshNodes(element);
                 cancel();
                 return;
@@ -1801,7 +1755,7 @@ id('graphic').addEventListener('pointerdown',function() {
             id('blueBox').setAttribute('x',x+offset.x);
             id('blueBox').setAttribute('y',y+offset.y);
             id('guides').style.display='block';
-            id('graphic').addEventListener('pointermove',drag);
+            id('drawing').addEventListener('pointermove',drag);
             return;
         }
         else if(val.startsWith('sizer')) {
@@ -1835,7 +1789,7 @@ id('graphic').addEventListener('pointerdown',function() {
                     }
                 }
                 element.setAttribute('points',pts);
-                updateGraph(elID,['points',pts]);
+                updateGraph(element.id,['points',pts]);
                 refreshNodes(element);
                 cancel();
                 return;
@@ -1850,7 +1804,7 @@ id('graphic').addEventListener('pointerdown',function() {
                     else pts+=points[i+1].x+','+points[i+1].y+' ';
                 }
                 element.setAttribute('points',pts);
-                updateGraph(elID,['points',pts]);
+                updateGraph(element.id,['points',pts]);
                 refreshNodes(element);
                 cancel();
                 return;
@@ -1901,7 +1855,7 @@ id('graphic').addEventListener('pointerdown',function() {
                     id('guides').style.display='block';
                     break;
             }
-            id('graphic').addEventListener('pointermove',drag);
+            id('drawing').addEventListener('pointermove',drag);
             return;
         }
     }
@@ -1953,13 +1907,13 @@ id('graphic').addEventListener('pointerdown',function() {
             prompt('OVAL: drag to size');
             break;
         case 'arc':
-            arc.x1=x0;
-            arc.y1=y0;
-            prompt('ARC: drag to centre');
-            id('blueLine').setAttribute('x1',arc.x1);
-            id('blueLine').setAttribute('y1',arc.y1);
-            id('blueLine').setAttribute('x2',arc.x1);
-            id('blueLine').setAttribute('y2',arc.y1);
+            arc.cx=x0;
+            arc.cy=y0;
+            prompt('ARC: drag to start');
+            id('blueLine').setAttribute('x1',arc.cx);
+            id('blueLine').setAttribute('y1',arc.cy);
+            id('blueLine').setAttribute('x2',arc.cx);
+            id('blueLine').setAttribute('y2',arc.cy);
             id('guides').style.display='block';
             break;
         case 'text':
@@ -1992,7 +1946,7 @@ id('graphic').addEventListener('pointerdown',function() {
     }
     event.stopPropagation();
     console.log('exit pointer down code');
-    if(mode!='stamp') id('graphic').addEventListener('pointermove',drag);
+    if(mode!='stamp') id('drawing').addEventListener('pointermove',drag);
 });
 // POINTER MOVE
 function drag(event) {
@@ -2044,6 +1998,15 @@ function drag(event) {
                 // console.log('dragged to '+x+','+y);
             }
             break;
+        /*
+        case 'copy':
+        		console.log('drag '+selection.length+' items');
+        		copy.x=x-x0;
+        		copy.y=y-y0;
+        		console.log('by '+copy.x+','+copy.y);
+        		id('selection').setAttribute('transform','translate('+copy.x+','+copy.y+')');
+        	break;
+        	*/
         case 'boxSize':
             var aspect=w/h;
             dx=(node%2<1)?(x-x0):(x0-x);
@@ -2091,6 +2054,8 @@ function drag(event) {
             if(Math.abs(r-arc.r)<snapD) { // change angle but not radius
                 id('blueLine').setAttribute('x2',x);
                 id('blueLine').setAttribute('y2',y);
+                id('blueOval').setAttribute('cx',arc.cx);
+                id('blueOval').setAttribute('cy',arc.cy);
                 id('blueOval').setAttribute('rx',arc.r);
                 id('blueOval').setAttribute('ry',arc.r);
                 var a=Math.atan(dy/dx); // radians
@@ -2099,6 +2064,8 @@ function drag(event) {
                 id('second').value=a; // new angle
             }
             else { // change radius but not angle
+            id('blueOval').setAttribute('cx',arc.cx);
+                id('blueOval').setAttribute('cy',arc.cy);
                 id('blueOval').setAttribute('rx',r);
                 id('blueOval').setAttribute('ry',r);
                 id('blueLine').setAttribute('x2',x0);
@@ -2140,10 +2107,10 @@ function drag(event) {
             w=Math.abs(x-x0);
             h=Math.abs(y-y0);
             if(Math.abs(w-h)<snapD*2) w=h; // snap to circle
-            var left=(x<x0)?(x0-w):x0;
-            var top=(y<y0)?(y0-h):y0;
-            id('blueOval').setAttribute('cx',(left+w/2));
-            id('blueOval').setAttribute('cy',(top+h/2));
+            // var left=(x<x0)?(x0-w):x0;
+            // var top=(y<y0)?(y0-h):y0;
+            id('blueOval').setAttribute('cx',x0);
+            id('blueOval').setAttribute('cy',y0);
             id('blueOval').setAttribute('rx',w/2);
             id('blueOval').setAttribute('ry',h/2);
             break;
@@ -2153,13 +2120,13 @@ function drag(event) {
             w=x-x0;
             h=y-y0;
             if((Math.abs(w)<2)&&(Math.abs(h)<2)) break; // wait for significant movement
-            arc.cx=x;
-            arc.cy=y;
+            arc.x1=x;
+            arc.y1=y;
             arc.radius=Math.round(Math.sqrt(w*w+h*h));
-            id('blueLine').setAttribute('x2',arc.cx);
-            id('blueLine').setAttribute('y2',arc.cy);
-            id('blueOval').setAttribute('cx',x);
-            id('blueOval').setAttribute('cy',y);
+            id('blueLine').setAttribute('x2',arc.x1);
+            id('blueLine').setAttribute('y2',arc.y1);
+            id('blueOval').setAttribute('cx',arc.cx);
+            id('blueOval').setAttribute('cy',arc.cy);
             id('blueOval').setAttribute('rx',arc.radius);
             id('blueOval').setAttribute('ry',arc.radius);
             break;
@@ -2242,9 +2209,9 @@ function drag(event) {
     event.stopPropagation();
 };
 // POINTER UP
-id('graphic').addEventListener('pointerup',function() {
+id('drawing').addEventListener('pointerup',function() {
     console.log('pointer up at '+x+','+y+' mode: '+mode);
-    id('graphic').removeEventListener('pointermove',drag);
+    id('drawing').removeEventListener('pointermove',drag);
     snap=snapCheck(); // NEEDED???
     console.log('snap - x:'+snap.x+' y:'+snap.y+' n:'+snap.n);
     if(mode.startsWith('movePoint')) { // move polyline/polygon point
@@ -2281,7 +2248,7 @@ id('graphic').addEventListener('pointerup',function() {
                 mode='edit';
                 return;
             }
-            updateGraph(elID,['points',element.getAttribute('points')]);
+            updateGraph(element.id,['points',element.getAttribute('points')]);
             id('bluePolyline').setAttribute('points','0,0');
             refreshNodes(element);
         }
@@ -2289,7 +2256,6 @@ id('graphic').addEventListener('pointerup',function() {
     }
     else switch(mode) {
         case 'move':
-            // console.log('move element '+elID+' ends at '+x+','+y);
             id('handles').innerHTML='';
             id('blueBox').setAttribute('width',0);
             id('blueBox').setAttribute('height',0);
@@ -2298,7 +2264,7 @@ id('graphic').addEventListener('pointerup',function() {
                 dy=y-y0;
                 console.log('selection moved by '+dx+','+dy);
             }
-            else selection.push(elID); // move single element
+            else selection.push(element.id); // move single element
             switch(type(element)) {
                 case 'sketch':
                 case 'line':
@@ -2330,15 +2296,27 @@ id('graphic').addEventListener('pointerup',function() {
                     dx=x-x0;
                     dy=y-y0;
             }
+            if(copy.active) { // copy-move so selection should be copies
+            	copy.x+=dx;
+            	copy.y+=dy;
+            	// copy.active=false;
+            	console.log('copy done - offsets: '+copy.x+','+copy.y);
+            	selection=[];
+            	while(copy.elements.length>0) selection.push(copy.elements.shift());
+            	console.log('selection includes '+selection.length+' copied elements - first is '+selection[0]);
+            }
             console.log('move '+selection.length+' elements by '+dx+','+dy);
             while(selection.length>0) { // move all selected elements
-                elID=selection.pop();
-                console.log('move element '+elID);
-                element=id(elID);
+            	element=id(selection.pop());
+                // elID=selection.pop();
+                console.log('move element '+element.id);
+                // element=id(elID);
                 move(element,dx,dy);
+                if(copy.active) select(element);
+                else cancel();
             }
             id('selection').setAttribute('transform','translate(0,0)');
-            cancel();
+            // cancel();
             break;
         case 'boxSize':
             console.log('pointer up - moved: '+dx+'x'+dy);
@@ -2354,7 +2332,7 @@ id('graphic').addEventListener('pointerup',function() {
             y=id('blueBox').getAttribute('y');
             w=id('blueBox').getAttribute('width');
             h=id('blueBox').getAttribute('height');
-            updateGraph(elID,['x',x,'y',y,'width',w,'height',h]);
+            updateGraph(element.id,['x',x,'y',y,'width',w,'height',h]);
             element.setAttribute('x',x);
             element.setAttribute('y',y);
             element.setAttribute('width',w);
@@ -2377,7 +2355,7 @@ id('graphic').addEventListener('pointerup',function() {
             y=Number(id('blueBox').getAttribute('y'));
             w=Number(id('blueBox').getAttribute('width'));
             h=Number(id('blueBox').getAttribute('height'));
-            updateGraph(elID,['cx',(x+w/2),'y',(y+h/2),'rx',w/2,'height',h/2]);
+            updateGraph(element.id,['cx',(x+w/2),'y',(y+h/2),'rx',w/2,'height',h/2]);
             element.setAttribute('cx',(x+w/2));
             element.setAttribute('cy',(y+h/2));
             element.setAttribute('rx',w/2);
@@ -2429,7 +2407,7 @@ id('graphic').addEventListener('pointerup',function() {
             }
             var d='M'+arc.cx+','+arc.cy+' M'+arc.x1+','+arc.y1+' A'+arc.r+','+arc.r+' 0 '+arc.major+','+arc.sweep+' '+arc.x2+','+arc.y2;
             element.setAttribute('d',d);
-            updateGraph(elID,['x1',arc.x1,'y1',arc.y1,'x2',arc.x2,'y2',arc.y2,'r',arc.r]);
+            updateGraph(element.id,['x1',arc.x1,'y1',arc.y1,'x2',arc.x2,'y2',arc.y2,'r',arc.r]);
             refreshNodes(element);
             id('handles').innerHTML='';
             id('blueOval').setAttribute('rx',0);
@@ -2610,8 +2588,8 @@ id('graphic').addEventListener('pointerup',function() {
             cancel();
             break;
         case 'arc':
-            arc.cx=x;
-            arc.cy=y;
+            arc.x1=x;
+            arc.y1=y;
             // console.log('arcCentre: '+arc.centreX+','+arc.centreY);
             w=arc.x1-arc.cx; // radii
             h=arc.y1-arc.cy;
@@ -2655,7 +2633,7 @@ id('graphic').addEventListener('pointerup',function() {
 	        if(lineType=='none') graph.lineType='solid'; // avoid empty arcs
 	        graph.lineW=lineW;
 	        graph.fill='none'; // arcs default to no fill
-	        graph.opacity=0;
+	        graph.opacity=1;
 	        if((arc.r>=1)&&(a!=0)) addGraph(graph); // avoid zero-size arcs
             id('blueOval').setAttribute('rx',0);
             id('blueOval').setAttribute('ry',0);
@@ -2726,14 +2704,16 @@ id('graphic').addEventListener('pointerup',function() {
                     if(selection.length<2) {
                         console.log('only one selection');
                         id('selection').innerHTML=''; // no blue box
-                        elID=selection[0];
-                        element=id(elID);
+                        element=id(selection[0]);
+                        // elID=selection[0];
+                        // element=id(elID);
                         select(element); // add handles etc
                         // setStyle(element);
                     }
                     return;
                 }
             }
+            // break;
         case 'edit':
             var el=event.target;
             console.log('pointer up on element '+el.id);
@@ -2766,12 +2746,21 @@ id('graphic').addEventListener('pointerup',function() {
                 if(selection.indexOf(hit)<0) { // add to selection
                     selection.push(hit);
                     if(selection.length<2) { // only item selected
-                        elID=hit;
-                        element=id(elID);
-                        select(element);
+                        // elID=hit;
+                        element=id(hit);
+                        select(element,false);
+                        // element=id(elID);
+                        // select(element);
                     }
                     else { // multiple selection
                         console.log('add '+type(el)+' '+el.id+' to multiple selection');
+                        if(selection.length<3) {
+                            console.log('SECOND SELECTED ITEM');
+                            id('handles').innerHTML='';
+                            select(id(selection[0]),true); // highlight first selected item
+                        }
+                        select(el,true);
+                        /* OLD CODE
                         var box=getBounds(el);
                         var html="<rect x='"+box.x+"' y='"+box.y+"' width='"+box.width+"' height='"+box.height+"' ";
                         html+="stroke='none' fill='blue' fill-opacity='0.25' el='"+hit+"'/>";
@@ -2786,6 +2775,7 @@ id('graphic').addEventListener('pointerup',function() {
                             html+="stroke='none' fill='blue' fill-opacity='0.25' el='"+hit+"'/>";
                             id('selection').innerHTML+=html; // blue block for first element
                         }
+                        */
                         setStyle(); // SET STYLES TO DEFAULTS
                     }
                     setButtons();
@@ -2810,6 +2800,7 @@ function addGraph(el) {
         el.id=event.target.result;
         console.log('graph added - id: '+el.id+' - draw');
         id('dwg').appendChild(makeElement(el));
+        if(copy.active) copy.elements.push(el.id);
     }
     request.onerror=function(event) {
         console.log('add copy failed');
@@ -2817,8 +2808,9 @@ function addGraph(el) {
 }
 function cancel() { // cancel current operation and return to select mode
     mode='select';
+    copy.active=false;
     id('tools').style.display='block';
-    element=elID=null;
+    element=null;
     selection=[];
     selectedPoints=[];
     selectionBox.w=selectionBox.h=0;
@@ -2836,14 +2828,14 @@ function cancel() { // cancel current operation and return to select mode
     id('textDialog').style.display='none';
     setStyle(); // set styles to defaults
 }
-function checkDims(el) {
+/* function checkDims(el) {
     console.log('check linked dimensions for element '+el.id);
     for(var i=0;i<dims.length;i++) {
         if((Math.floor(dims[i].n1/10)==Number(el.id))||(Math.floor(dims[i].n2/10)==Number(el.id))) {
             refreshDim(dims[i]); // adjust and redraw linked dimension
         }
     }
-}
+} */
 function download(content,fileName,contentType) {
 	console.log("save as "+fileName);
 	var a=document.createElement('a');
@@ -2937,7 +2929,7 @@ function initialise() {
     id('clipper').innerHTML=html;
     for(var i=0;i<10;i++) nodes.push({'x':0,'y':0,'n':i}); // 10 nodes for blueline
     for(var i=0;i<10;i++) console.log('node '+i+': '+nodes[i].n+' at '+nodes[i].x+','+nodes[i].y);
-    id('countH').value=id('countV').value=1;
+    // id('countH').value=id('countV').value=1;
     cancel(); // set select mode
 }
 function load() {
@@ -3166,7 +3158,7 @@ function move(el,dx,dy) {
         case 'sketch':
             console.log('move all points by '+dx+','+dy);
             var graphs=db.transaction('graphs','readwrite').objectStore('graphs');
-	        var request=graphs.get(Number(elID));
+	        var request=graphs.get(Number(el.id));
 	        request.onsuccess=function(event) {
 	            var graph=request.result;
 	            console.log('got graph '+graph.id);
@@ -3176,7 +3168,7 @@ function move(el,dx,dy) {
 	            }
 	            request=graphs.put(graph);
 	            request.onsuccess=function(event) {
-			        console.log('graph '+elID+' updated - starts at '+graph.points[0].x+','+graph.points[0].y);
+			        console.log('graph '+el.id+' updated - starts at '+graph.points[0].x+','+graph.points[0].y);
 			        el.setAttribute('d',sketchPath(graph.points)); // redraw sketch element path
 		        };
 		        request.onerror=function(event) {
@@ -3251,7 +3243,7 @@ function re(op) { // op is 're-member' (memorise and show undo), 're-call' (rein
         memory=[];
         console.log('REMEMBER');
         for(var i=0;i<selection.length;i++) {
-            elID=selection[i];
+            var elID=selection[i];
             var el=id(elID);
             var props={};
             props.id=elID; // all elements have an id
@@ -3298,9 +3290,9 @@ function re(op) { // op is 're-member' (memorise and show undo), 're-call' (rein
         var item=memory[i];
         console.log('reinstate item '+item.id);
         prompt('UNDO');
-        elID=item.id;
-        var el=id(elID);
-        console.log('reinstate '+elID);
+        // elID=item.id;
+        var el=id(item.id);
+        console.log('reinstate '+el.id);
         switch(type(el)) {
             case 'line':
             case 'shape':
@@ -3313,7 +3305,7 @@ function re(op) { // op is 're-member' (memorise and show undo), 're-call' (rein
                 */
                 el.setAttribute('points',item.points);
                 // el.setAttribute('points',el.getAttribute('points'));
-                updateGraph(elID,['points',el.getAttribute('points'),'spin',item.spin]);
+                updateGraph(el.id,['points',el.getAttribute('points'),'spin',item.spin]);
                 refreshNodes(el);
                 break;
             case 'box':
@@ -3324,7 +3316,7 @@ function re(op) { // op is 're-member' (memorise and show undo), 're-call' (rein
                 el.setAttribute('height',item.height);
                 el.setAttribute('rx',item.rx);
                 el.setAttribute('spin',item.spin);
-                updateGraph(elID,['x',item.x,'y',item.y,'spin',item.spin,'flip',item.flip]);
+                updateGraph(el.id,['x',item.x,'y',item.y,'spin',item.spin,'flip',item.flip]);
                 refreshNodes(el);
                 break;
             case 'text':
@@ -3332,7 +3324,7 @@ function re(op) { // op is 're-member' (memorise and show undo), 're-call' (rein
                 el.setAttribute('x',item.x);
                 el.setAttribute('y',item.y);
                 el.setAttribute('flip',item.flip);
-                updateGraph(elID,['x',item.x,'y',item.y,'spin',item.spin,'flip',item.flip]);
+                updateGraph(el.id,['x',item.x,'y',item.y,'spin',item.spin,'flip',item.flip]);
                 refreshNodes(el);
                 break;
             case 'oval':
@@ -3340,13 +3332,13 @@ function re(op) { // op is 're-member' (memorise and show undo), 're-call' (rein
                 el.setAttribute('cy',item.cy);
                 el.setAttribute('rx',item.rx);
                 el.setAttribute('ry',item.ry);
-                updateGraph (elID,['cx',item.cx,'cy',item.cy,'rx',item.rx,'ry',item.ry,'spin',item.spin]);
+                updateGraph (el.id,['cx',item.cx,'cy',item.cy,'rx',item.rx,'ry',item.ry,'spin',item.spin]);
                 refreshNodes(el);
                 break;
             case 'arc':
                 el.setAttribute('d',item.d);
                 getArc(item.d);
-                updateGraph(elID,['cx',arc.cx,'cy',arc.cy,'r',arc.r,'x1',arc.x1,'y1',arc.y1,'x2',arc.x2,'y2',arc.y2,'spin',item.spin]);
+                updateGraph(el.id,['cx',arc.cx,'cy',arc.cy,'r',arc.r,'x1',arc.x1,'y1',arc.y1,'x2',arc.x2,'y2',arc.y2,'spin',item.spin]);
                 refreshNodes(el);
         }
         el.setAttribute('spin',item.spin);
@@ -3472,7 +3464,7 @@ function refreshNodes(el) {
             elNodes[0].y=Number(el.getAttribute('ay'));
             break;
     }
-    checkDims(el); // check if any dimensions need refreshing
+    // checkDims(el); // check if any dimensions need refreshing
 }
 function remove(elID,keepNodes) {
     console.log('remove element '+elID);
@@ -3516,181 +3508,162 @@ function reset() {
     id('svg').setAttribute('viewBox',view.box);
     id('zoom').innerHTML=zoom;
 }
-function saveSVG() {
-    id('datumSet').style.display='none';
-    var fileName=id('printName').value+'.svg';
-    var svg=id('drawing').innerHTML;
-    download(svg,fileName,'data:image/svg+xml');
-	id('datumSet').style.display='block';
-}
-function select(el) {
-    setStyle(el); // set style to suit selected element
-    // add node markers, boxes and handles to single selected item
-    id('handles').innerHTML=''; // clear any handles then add handles for selected element 
-    // first draw node markers?
-    for(var i=0;i<nodes.length;i++) { // draw tiny circle at each node
-        if(Math.floor(nodes[i].n/10)!=elID) continue;
-        var html="<circle cx='"+nodes[i].x+"' cy='"+nodes[i].y+"' r='"+1+"'/>";
-        console.log('node at '+nodes[i].x+','+nodes[i].y);
-        id('handles').innerHTML+=html;
-    }
-    switch(type(el)) {
-        case 'sketch':
-            var graphs=db.transaction('graphs','readwrite').objectStore('graphs');
-	        var request=graphs.get(Number(elID));
-	        request.onsuccess=function(event) {
-	            var graph=request.result;
-	            console.log('got graph '+graph.id);
-	            var pts=graph.points;
-	            var points='';
-	            for(var i=0;i<graph.points.length;i++) points+=pts[i].x+','+pts[i].y+' ';
-	            id('bluePolyline').setAttribute('points',points);
-	            var html="<use id='mover0' href='#mover' x='"+pts[0].x+"' y='"+pts[0].y+"'/>";
-                id('handles').innerHTML+=html; // circle handle moves whole element
-                for(var i=1;i<pts.length;i++) {
-                    html="<use id='sizer"+i+"' href='#sizer' x='"+pts[i].x+"' y='"+pts[i].y+"'/>";
-                    id('handles').innerHTML+=html; // disc handles move remaining nodes
-                }
-	        }
-            id('guides').style.display='block';
-            prompt('SKETCH');
-            node=0; // default anchor node
-            mode='pointEdit';
-            break;
-        case 'line':
-        case 'shape':
-            /* no need for bounds, w, h
-            var bounds=el.getBBox();
-            w=bounds.width;
-            h=bounds.height;
-            */
-            var points=el.points;
-            var n=points.length;
-            // console.log('bounds: '+w+'x'+h+'mm; '+n+' points');
-            // draw handles
-            var html="<use id='mover0' href='#mover' x='"+points[0].x+"' y='"+points[0].y+"'/>";
-            id('handles').innerHTML+=html; // circle handle moves whole element
-            for(var i=1;i<n;i++) {
-                html="<use id='sizer"+i+"' href='#sizer' x='"+points[i].x+"' y='"+points[i].y+"'/>";
-                id('handles').innerHTML+=html; // disc handles move remaining nodes
-            }
-            id('bluePolyline').setAttribute('points',el.getAttribute('points'));
-            id('guides').style.display='block';
-            prompt((type(el)=='line')?'LINE':'SHAPE');
-            node=0; // default anchor node
-            mode='pointEdit';
-            break;
-        case 'box':
-            x=parseFloat(el.getAttribute('x'));
-            y=parseFloat(el.getAttribute('y'));
-            w=parseFloat(el.getAttribute('width'));
-            h=parseFloat(el.getAttribute('height'));
-            // draw blueBox for sizing
-            id('blueBox').setAttribute('x',x); // SET blueBox TO MATCH BOX (WITHOUT SPIN)
-            id('blueBox').setAttribute('y',y);
-            id('blueBox').setAttribute('width',w);
-            id('blueBox').setAttribute('height',h);
-            id('guides').style.display='block';
-            // draw handles
-            var html="<use id='mover0' href='#mover' x='"+(x+w/2)+"' y='"+(y+h/2)+"'/>"; // center
-            html+="<use id='sizer1' href='#sizer' x='"+x+"' y='"+y+"'/>"; // top/left
-            html+="<use id='sizer2' href='#sizer' x='"+(x+w)+"' y='"+y+"'/>"; // top/right
-            html+="<use id='sizer3' href='#sizer' x='"+x+"' y='"+(y+h)+"'/>"; // bottom/left
-            html+="<use id='sizer4' href='#sizer' x='"+(x+w)+"' y='"+(y+h)+"'/>"; // bottom/right
-            id('handles').innerHTML+=html;
-            node=0; // default anchor node
-            mode='edit';
-            break;
-        case 'oval':
-            x=parseFloat(el.getAttribute('cx'));
-            y=parseFloat(el.getAttribute('cy'));
-            w=parseFloat(el.getAttribute('rx'))*2;
-            h=parseFloat(el.getAttribute('ry'))*2;
-            // draw blueBox for sizing
-            id('blueBox').setAttribute('x',(x-w/2)); // SET blueBox TO MATCH OVAL (WITHOUT SPIN)
-            id('blueBox').setAttribute('y',(y-h/2));
-            id('blueBox').setAttribute('width',w);
-            id('blueBox').setAttribute('height',h);
-            id('guides').style.display='block';
-            // draw handles
-            var html="<use id='mover0' href='#mover' x='"+x+"' y='"+y+"'/>"; // center
-            html+="<use id='sizer1' href='#sizer' x='"+(x-w/2)+"' y='"+(y-h/2)+"'/>"; // top/left
-            html+="<use id='sizer2' href='#sizer' x='"+(x+w/2)+"' y='"+(y-h/2)+"'/>"; // top/right
-            html+="<use id='sizer3' href='#sizer' x='"+(x-w/2)+"' y='"+(y+h/2)+"'/>"; // bottom/left
-            html+="<use id='sizer4' href='#sizer' x='"+(x+w/2)+"' y='"+(y+h/2)+"'/>"; // bottom/right
-            id('handles').innerHTML+=html;
-            node=0; // default anchor node
-            mode='edit';
-            break;
-        case 'arc':
-            var d=el.getAttribute('d');
-            console.log('select arc - d: '+d);
-            getArc(d); // derive arc geometry from d
-            // draw handles
-            var html="<use id='mover0' href='#mover' x='"+arc.cx+"' y='"+arc.cy+"'/>"; // mover at centre
-            html+="<use id='sizer1' href='#sizer' x='"+arc.x1+"' y='"+arc.y1+"'/>"; // sizers at start...
-            html+="<use id='sizer2' href='#sizer' x='"+arc.x2+"' y='"+arc.y2+"'/>"; // ...and end or arc
-            id('handles').innerHTML+=html;
-            var a1=Math.atan((arc.y1-arc.cy)/(arc.x1-arc.cx));
-            if(arc.x1<arc.cx) a1+=Math.PI;
-            var a=Math.atan((arc.y2-arc.cy)/(arc.x2-arc.cx));
-            console.log('end angle: '+a);
-            if(arc.x2<arc.cx) a+=Math.PI;
-            x0=arc.cx; // centre
-            y0=arc.cy;
-            x=x0+arc.r*Math.cos(a); // end point
-            y=y0+arc.r*Math.sin(a);
-            a=Math.abs(a-a1); // swept angle - radians
-            a*=180/Math.PI; // degrees
-            a=Math.round(a);
-            if(arc.major>0) a=360-a;
-            prompt('ARC');
-            mode='edit';
-            break;
-        case 'text':
-            var bounds=el.getBBox();
-            w=Math.round(bounds.width);
-            h=Math.round(bounds.height);
-            // draw handle
-            var html="<use id='mover0' href='#mover' x='"+bounds.x+"' y='"+(bounds.y+h)+"'/>";
-            // var html="<circle id='handle' cx="+bounds.x+" cy="+(bounds.y+bounds.height)+" r='"+handleR+"' stroke='none' fill='#0000FF88'/>";
-            id('handles').innerHTML+=html; // circle handle moves text
-            // show text edit dialog
-            id('textDialog').style.left='48px';
-            id('textDialog').style.top='4px';
-            id('text').value=element.innerHTML;
-            id('textDialog').style.display='block';
-            mode='edit';
-            break;
-        case 'dim':
-            var line=el.firstChild;
-            var x1=parseInt(line.getAttribute('x1'));
-            var y1=parseInt(line.getAttribute('y1'));
-            var x2=parseInt(line.getAttribute('x2'));
-            var y2=parseInt(line.getAttribute('y2'));
-            var spin=el.getAttribute('transform');
-            console.log('dim from '+x1+','+y1+' to '+x2+','+y2);
-            // draw handle
-            var html="<use id='mover0' href='#mover' x='"+((x1+x2)/2)+"' y='"+((y1+y2)/2)+"' "; 
-            html+="transform='"+spin+"'/>";
-            id('handles').innerHTML+=html;
-            prompt('DIMENSION');
-            mode='edit';
-            break;
-        case 'stamp':
-            var bounds=getBounds(el);
-            x=Number(el.getAttribute('x'));
-            y=Number(el.getAttribute('y'));
-            w=Number(bounds.width);
-            h=Number(bounds.height);
-            // draw handle
-            var html="<use id='mover0' href='#mover' x='"+x+"' y='"+y+"'/>";
-            // var html="<circle id='handle' cx='"+x+"' cy='"+y+"' r='"+handleR+"' stroke='none' fill='#0000FF88'/>";
-            id('handles').innerHTML=html;
-            prompt('STAMP');
-            mode='edit';
-            break;
-    };
+function select(el,multiple) {
+	if(multiple) { // one of multiple seletion - highlight in blue
+		console.log('select element '+el.id+' of multiple selection');
+		var box=getBounds(el);
+		var html="<rect x='"+box.x+"' y='"+box.y+"' width='"+box.width+"' height='"+box.height+"' ";
+		html+="stroke='none' fill='blue' fill-opacity='0.25' el='"+hit+"'/>";
+		console.log('box html: '+html);
+		id('selection').innerHTML+=html; // blue block for this element
+	}
+	else {
+		console.log('select '+el.id+' stroke: '+el.getAttribute('stroke')+' fill: '+el.getAttribute('fill'));
+		setStyle(el); // set style to suit selected element
+		// add node markers, boxes and handles to single selected item
+		id('handles').innerHTML=''; // clear any handles then add handles for selected element 
+		// first draw node markers?
+		for(var i=0;i<nodes.length;i++) { // draw tiny circle at each node
+			if(Math.floor(nodes[i].n/10)!=el.id) continue;
+			var html="<circle cx='"+nodes[i].x+"' cy='"+nodes[i].y+"' r='"+1+"'/>";
+			console.log('node at '+nodes[i].x+','+nodes[i].y);
+			id('handles').innerHTML+=html;
+		}
+		switch(type(el)) {
+			case 'sketch':
+				var graphs=db.transaction('graphs','readwrite').objectStore('graphs');
+				var request=graphs.get(Number(el.id));
+				request.onsuccess=function(event) {
+					var graph=request.result;
+					console.log('got graph '+graph.id);
+					var pts=graph.points;
+					var points='';
+					for(var i=0;i<graph.points.length;i++) points+=pts[i].x+','+pts[i].y+' ';
+					id('bluePolyline').setAttribute('points',points);
+					var html="<use id='mover0' href='#mover' x='"+pts[0].x+"' y='"+pts[0].y+"'/>";
+					id('handles').innerHTML+=html; // circle handle moves whole element
+					for(var i=1;i<pts.length;i++) {
+						html="<use id='sizer"+i+"' href='#sizer' x='"+pts[i].x+"' y='"+pts[i].y+"'/>";
+						id('handles').innerHTML+=html; // disc handles move remaining nodes
+					}
+				}
+				id('guides').style.display='block';
+				prompt('SKETCH');
+				node=0; // default anchor node
+				mode='pointEdit';
+				break;
+			case 'line':
+	        case 'shape':
+	            var points=el.points;
+	            var n=points.length;
+	            // draw handles
+				var html="<use id='mover0' href='#mover' x='"+points[0].x+"' y='"+points[0].y+"'/>";
+				id('handles').innerHTML+=html; // circle handle moves whole element
+				for(var i=1;i<n;i++) {
+					html="<use id='sizer"+i+"' href='#sizer' x='"+points[i].x+"' y='"+points[i].y+"'/>";
+					id('handles').innerHTML+=html; // disc handles move remaining nodes
+				}
+				id('bluePolyline').setAttribute('points',el.getAttribute('points'));
+				id('guides').style.display='block';
+				prompt((type(el)=='line')?'LINE':'SHAPE');
+				node=0; // default anchor node
+				mode='pointEdit';
+				break;
+			case 'box':
+				x=parseFloat(el.getAttribute('x'));
+				y=parseFloat(el.getAttribute('y'));
+				w=parseFloat(el.getAttribute('width'));
+				h=parseFloat(el.getAttribute('height'));
+				// draw blueBox for sizing
+				id('blueBox').setAttribute('x',x); // SET blueBox TO MATCH BOX (WITHOUT SPIN)
+				id('blueBox').setAttribute('y',y);
+				id('blueBox').setAttribute('width',w);
+				id('blueBox').setAttribute('height',h);
+				id('guides').style.display='block';
+				// draw handles
+				var html="<use id='mover0' href='#mover' x='"+(x+w/2)+"' y='"+(y+h/2)+"'/>"; // center
+				html+="<use id='sizer1' href='#sizer' x='"+x+"' y='"+y+"'/>"; // top/left
+				html+="<use id='sizer2' href='#sizer' x='"+(x+w)+"' y='"+y+"'/>"; // top/right
+				html+="<use id='sizer3' href='#sizer' x='"+x+"' y='"+(y+h)+"'/>"; // bottom/left
+				html+="<use id='sizer4' href='#sizer' x='"+(x+w)+"' y='"+(y+h)+"'/>"; // bottom/right
+				id('handles').innerHTML+=html;
+				node=0; // default anchor node
+				mode='edit';
+				break;
+			case 'oval':
+				x=parseFloat(el.getAttribute('cx'));
+				y=parseFloat(el.getAttribute('cy'));
+				w=parseFloat(el.getAttribute('rx'))*2;
+				h=parseFloat(el.getAttribute('ry'))*2;
+				// draw blueBox for sizing
+				id('blueBox').setAttribute('x',(x-w/2)); // SET blueBox TO MATCH OVAL (WITHOUT SPIN)
+				id('blueBox').setAttribute('y',(y-h/2));
+				id('blueBox').setAttribute('width',w);
+				id('blueBox').setAttribute('height',h);
+				id('guides').style.display='block';
+				// draw handles
+				var html="<use id='mover0' href='#mover' x='"+x+"' y='"+y+"'/>"; // center
+				html+="<use id='sizer1' href='#sizer' x='"+(x-w/2)+"' y='"+(y-h/2)+"'/>"; // top/left
+				html+="<use id='sizer2' href='#sizer' x='"+(x+w/2)+"' y='"+(y-h/2)+"'/>"; // top/right
+				html+="<use id='sizer3' href='#sizer' x='"+(x-w/2)+"' y='"+(y+h/2)+"'/>"; // bottom/left
+				html+="<use id='sizer4' href='#sizer' x='"+(x+w/2)+"' y='"+(y+h/2)+"'/>"; // bottom/right
+				id('handles').innerHTML+=html;
+				node=0; // default anchor node
+				mode='edit';
+				break;
+			case 'arc':
+				var d=el.getAttribute('d');
+				console.log('select arc - d: '+d);
+				getArc(d); // derive arc geometry from d
+				// draw handles
+				var html="<use id='mover0' href='#mover' x='"+arc.cx+"' y='"+arc.cy+"'/>"; // mover at centre
+				html+="<use id='sizer1' href='#sizer' x='"+arc.x1+"' y='"+arc.y1+"'/>"; // sizers at start...
+				html+="<use id='sizer2' href='#sizer' x='"+arc.x2+"' y='"+arc.y2+"'/>"; // ...and end or arc
+				id('handles').innerHTML+=html;
+				var a1=Math.atan((arc.y1-arc.cy)/(arc.x1-arc.cx));
+				if(arc.x1<arc.cx) a1+=Math.PI;
+				var a=Math.atan((arc.y2-arc.cy)/(arc.x2-arc.cx));
+				console.log('end angle: '+a);
+				if(arc.x2<arc.cx) a+=Math.PI;
+				x0=arc.cx; // centre
+				y0=arc.cy;
+				x=x0+arc.r*Math.cos(a); // end point
+				y=y0+arc.r*Math.sin(a);
+				a=Math.abs(a-a1); // swept angle - radians
+				a*=180/Math.PI; // degrees
+				a=Math.round(a);
+				if(arc.major>0) a=360-a;
+				prompt('ARC');
+				mode='edit';
+				break;
+			case 'text':
+				var bounds=el.getBBox();
+				w=Math.round(bounds.width);
+				h=Math.round(bounds.height);
+				// draw handle
+				var html="<use id='mover0' href='#mover' x='"+bounds.x+"' y='"+(bounds.y+h)+"'/>";
+				id('handles').innerHTML+=html; // circle handle moves text
+				// show text edit dialog
+				id('textDialog').style.left='48px';
+				id('textDialog').style.top='4px';
+				id('text').value=element.innerHTML;
+				id('textDialog').style.display='block';
+				mode='edit';
+				break;
+			case 'stamp':
+				var bounds=getBounds(el);
+				x=Number(el.getAttribute('x'));
+				y=Number(el.getAttribute('y'));
+				w=Number(bounds.width);
+				h=Number(bounds.height);
+				// draw handle
+				var html="<use id='mover0' href='#mover' x='"+x+"' y='"+y+"'/>";
+				id('handles').innerHTML=html;
+				prompt('STAMP');
+				mode='edit';
+				break;
+		};
+	}
 }
 function setButtons() {
     var n=selection.length;
@@ -3747,6 +3720,7 @@ function setStyle(el) {
         id('textSize').value=textSize;
         id('fill').style.fontSize=(textSize*2)+'pt';
         id('fillType').value=fillType;
+        id('patternOption').disabled=true;
         id('fill').style.backgroundColor=fillCol;
         id('fillCol').value=fillCol;
         id('fill').style.fontStyle=(textStyle=='italic')?'italic':'normal';
@@ -3757,44 +3731,54 @@ function setStyle(el) {
         id('blur').value=blur;
     }
     else { // show styles for element el
-        console.log('SET STYLES FOR ELEMENT');
-        val=getLineStyle(el);
-        id('lineType').value=val;
+        console.log('SET STYLES FOR ELEMENT '+el.id);
+        
         id('line').style.borderBottomStyle=val;
-        val=el.getAttribute('stroke-width');
+        var val=el.getAttribute('stroke-width');
+        console.log('line width: '+val);
         if(val) {
             console.log('line width: '+val);
-            id('line').style.borderWidth=(val)+'px';
+            // id('line').style.borderWidth=(val)+'px';
             // val=Math.floor(val/4);
             // if(val>3) val=3;
             // console.log('select option '+val);
             id('lineWidth').value=val;
         }
         val=el.getAttribute('stroke');
+        console.log('stroke: '+val);
         if(val) {
             id('lineCol').value=val;
-            id('line').style.borderColor=val;
+            // id('line').style.borderColor=val;
         }
+        val=getLineStyle(el);
+        console.log('line type: '+val);
+        id('lineType').value=val;
+        id('patternOption').disabled=true;
         val=el.getAttribute('fill');
+        console.log('element '+el.getAttribute('id')+' fill: '+val);
         if(val=='none') {
-            id('fill').style.background='#00000000';
-            id('fillCol').value='white';
-            id('opacity').value=0;
+        	id('fillType').value='none';
+            // id('fill').style.background='#00000000';
+            id('fillCol').value='#ffffff';
+            // id('opacity').value=0;
         }
+        else if(val.startsWith('url')) id('fillType').value='pattern';
         else {
             if(type(element)=='text') {
                 id('lineCol').value=val;
-                id('line').style.borderColor=val;
+                // id('line').style.borderColor=val;
+                id('fillType').value='none';
             }
             else {
+            	id('fillType').value='solid';
                 id('fillCol').value=val;
-                id('fill').style.background=val;
+                // id('fill').style.background=val;
             }
         }
         val=el.getAttribute('fill-opacity');
         if(val) {
             id('opacity').value=val;
-            id('fill').style.opacity=val;
+            // id('fill').style.opacity=val;
         }
         else id('opacity').value=1;
         val=el.getAttribute('filter');
@@ -3807,24 +3791,24 @@ function setStyle(el) {
         if(type(element)=='text') {
             val=el.getAttribute('font-family');
             id('textFont').value=val;
-            id('fill').style.fontFamily=val;
+            // id('fill').style.fontFamily=val;
             val=el.getAttribute('font-size');
             id('textSize').value=val;
-            id('fill').style.fontSize=(val*2)+'pt';
+            // id('fill').style.fontSize=(val*2)+'pt';
             id('textStyle').value='fine';
             id('fill').style.fontStyle='normal';
             val=el.getAttribute('font-style');
             if(val=='italic') {
                 id('textStyle').value='italic';
-                id('text').style.fontStyle='italic';
+                // id('text').style.fontStyle='italic';
             }
-            id('fill').style.fontWeight='normal';
+            // id('fill').style.fontWeight='normal';
             val=el.getAttribute('font-weight');
             if(val=='bold') {
                 id('textStyle').value='bold';
-                id('text').style.fontWeight='bold';
+                // id('text').style.fontWeight='bold';
             }
-            id('fill').style.color=id('lineCol').value=el.getAttribute('fill');
+            // id('fill').style.color=id('lineCol').value=el.getAttribute('fill');
         } 
     }
 }
@@ -3983,7 +3967,7 @@ function swopGraphs(g1,g2) {
     }
 }
 function type(el) {
-     if(el instanceof SVGPolylineElement) {
+    if(el instanceof SVGPolylineElement) {
         return 'line';
     }
     else if(el instanceof SVGPolygonElement) {
@@ -4053,6 +4037,9 @@ request.onupgradeneeded=function(event) {
     if (!db.objectStoreNames.contains('stamps')) {
         var stamps=db.createObjectStore("stamps",{keyPath:'name'});
     }
+    /* if (!db.objectStoreNames.contains('images')) {
+        var stamps=db.createObjectStore("images",{keyPath:'id',autoIncrement:true});
+    } */
 };
 request.onerror=function(event) {
 	alert("indexedDB error");

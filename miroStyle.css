@@ -225,12 +225,14 @@ button {
 #alignButton {
     background: url(svg/align.svg) center center no-repeat;
 }
-#doubleButton {
-    background: url(svg/double.svg) center center no-repeat;
+#copyButton {
+    background: url(svg/copy.svg) center center no-repeat;
 }
+/*
 #repeatButton {
     background: url(svg/repeat.svg) center center no-repeat;
 }
+*/
 #filletButton {
     background: url(svg/roundbox.svg) center center no-repeat;
 }
@@ -283,6 +285,11 @@ button {
     background-color: white;
     z-index: 11;
     display: none;
+}
+#patternMenu {
+	width: 192px;
+	height: 192px;
+	background: white url('patterns.png') no-repeat center;
 }
 #textDialog {
     position: fixed;
