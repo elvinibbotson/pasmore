@@ -908,7 +908,17 @@ id('copyButton').addEventListener('click',function() {
                 g.stroke=element.getAttribute('stroke');
                 g.lineW=element.getAttribute('stroke-width');
                 g.lineStyle=getLineStyle(element);
-                g.fill=element.getAttribute('fill');
+                var val=element.getAttribute('fill');
+                if(val.startsWith('url')) {
+                	var p=id('pattern'+element.id);
+                	g.fillType='pattern'+p.getAttribute('index');
+                	g.fill=p.firstChild.getAttribute('fill');
+                }
+                else {
+                	g.fillType=(val=='none')?'none':'solid';
+                	g.fill=val;
+                }
+                console.log('copy fillType: '+g.fillType+'; fill: '+g.fill);
                 var val=element.getAttribute('fill-opacity');
                 if(val) g.opacity=val;
             }
@@ -1565,19 +1575,22 @@ id('lineCol').addEventListener('change',function() {
     // id('line').style.backgroundColor=val;
     // ADD CODE
 });
-id('fillType').addEventListener('click',function() {
+id('fillType').addEventListener('change',function() {
     var type=event.target.value;
     console.log('fill type: '+type);
     if(element) { // change selected element
         // element=id(elID);
-        console.log('set element '+element.id+' fill style to '+type);
+        var col=id('fillCol').value;
+        console.log('set element '+element.id+' fill type to '+type);
         if(type=='pattern') {
     		showDialog('patternMenu',true);
     		return;
     	}
-        element.setAttribute('fill',(type=='none')?'none':fillCol);
-        updateGraph(element.id,['fillType',type,'fill',(type=='none')?'none':fillCol]);
-        // updateGraph(elID,['fill',(type=='none')?'none':lineCol]);
+    	else {
+    		id('pattern'+element.id).remove(); // attempt removal of any associated pattern
+	        element.setAttribute('fill',(type=='none')?'none':col);
+    	}
+        updateGraph(element.id,['fillType',type]);
     }
     else { // change default fillType type
         fillType=type;
@@ -1589,9 +1602,10 @@ id('fillCol').addEventListener('change',function() {
     if(element) { // change selected element
         // element=id(elID);
         // var fillCol=val;
-        element.setAttribute('fill',val);
+        var type=id('fillType').value;
+        if(type=='pattern') id('pattern'+element.id).firstChild.setAttribute('fill',val);
+        else element.setAttribute('fill',(type=='solid')?val:'none');
         updateGraph(element.id,['fill',val]);
-        id('fill').style.backgroundColor=val;
     }
     else { // change default fill colour
         fillCol=val;
@@ -1626,9 +1640,22 @@ id('blur').addEventListener('change',function() {
 id('patternMenu').addEventListener('click',function(event) {
 	x=Math.floor((event.clientX-56)/32);
 	y=Math.floor((event.clientY-12)/32);
-	console.log('set element fill to pattern'+y+x);
-	element.setAttribute('fill','url(#pattern'+y+x+')');
-	updateGraph(element.id,['fillType','pattern','fill','url(#pattern'+y+x+')'])
+	var n=y*6+x;
+	var fill=element.getAttribute('fill');
+	console.log('set element fill (currently '+fill+') to pattern'+n);
+	var html="<pattern id='pattern"+element.id+"' index='"+n+"' width='"+pattern[n].width+"' height='"+pattern[n].height+"' patternUnits='userSpaceOnUse'";
+	if(pattern[n].spin>0) html+=" patternTransform='rotate("+pattern[n].spin+")'";
+	html+='>'+pattern[n].svg+'</pattern>';
+	console.log('pattern HTML: '+html);
+	id('defs').innerHTML+=html;
+	var el=id('pattern'+element.id);
+	// console.log('pattern code '+el.innerHTML);
+	id('pattern'+element.id).firstChild.setAttribute('fill',fill);
+	id('pattern'+element.id).lastChild.setAttribute('fill',fill);
+	element.setAttribute('fill','url(#pattern'+element.id+')');
+	 updateGraph(element.id,['fillType','pattern'+n]);
+	// element.setAttribute('fill','url(#pattern'+y+x+')');
+	// updateGraph(element.id,['fillType','pattern','fill','url(#pattern'+y+x+')'])
 });
 // POINTER DOWN
 id('drawing').addEventListener('pointerdown',function() {
@@ -2440,7 +2467,8 @@ id('drawing').addEventListener('pointerup',function() {
 	        graph.lineW=lineW;
 	        graph.lineStyle=lineType;
 	        if(lineType=='none') graph.lineStyle='solid'; // cannot have empty stroke
-	        graph.fill='none';
+	        graph.fillType='none';
+	        graph.fill=fillCol;
 	        graph.opacity=opacity;
 	        graph.blur=blur;
 	        addGraph(graph);
@@ -2504,6 +2532,7 @@ id('drawing').addEventListener('pointerup',function() {
 	                if(lineType=='none') graph.stroke='none';
 	                graph.lineW=lineW;
 	                graph.lineStyle=lineType;
+	                graph.fillType='none';
 	                graph.fill=fillCol;
 	                if(len>=1) addGraph(graph); // avoid zero-size shapes
 	                blueline.setAttribute('points','0,0');
@@ -2541,6 +2570,7 @@ id('drawing').addEventListener('pointerup',function() {
 	        if(lineType=='none') graph.stroke='none';
 	        graph.lineW=lineW;
 	        graph.lineStyle=lineType;
+	        graph.fillType=fillType;
 	        graph.fill=fillCol;
 	        if(len>=1) addGraph(graph); // avoid zero-size shapes
 	        id('bluePolyline').setAttribute('points','0,0');
@@ -2560,6 +2590,7 @@ id('drawing').addEventListener('pointerup',function() {
 	        if(lineType=='none') graph.stroke='none';
 	        graph.lineW=lineW;
 	        graph.lineStyle=lineType;
+	        graph.fillType=fillType;
 	        graph.fill=fillCol;
 	        graph.opacity=opacity;
 	        graph.blur=blur;
@@ -2580,6 +2611,7 @@ id('drawing').addEventListener('pointerup',function() {
 	        if(lineType=='none') graph.stroke='none';
 	        graph.lineStyle=lineType;
 	        graph.lineW=lineW;
+	        graph.fillType=fillType;
 	        graph.fill=fillCol;
 	        graph.opacity=opacity;
 	        if((graph.rx>=1)&&(graph.ry>=1)) addGraph(graph); // avoid zero-size ovals
@@ -2632,7 +2664,8 @@ id('drawing').addEventListener('pointerup',function() {
 	        graph.lineStyle=lineType;
 	        if(lineType=='none') graph.lineType='solid'; // avoid empty arcs
 	        graph.lineW=lineW;
-	        graph.fill='none'; // arcs default to no fill
+	        graph.fillType='none'; // arcs default to no fill
+	        graph.fill=fillCol;
 	        graph.opacity=1;
 	        if((arc.r>=1)&&(a!=0)) addGraph(graph); // avoid zero-size arcs
             id('blueOval').setAttribute('rx',0);
@@ -2981,6 +3014,7 @@ function makeElement(g) {
             // var points=g.points;
             el.setAttribute('d',sketchPath(g.points));
             el.setAttribute('spin',g.spin);
+            /* DO THIS AT END
             el.setAttribute('stroke',g.stroke);
             el.setAttribute('stroke-width',g.lineW);
             var dash=setLineStyle(g);
@@ -2991,6 +3025,7 @@ function makeElement(g) {
                 el.setAttribute('fill-opacity',g.opacity);
             }
             if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
+            */
             if(g.spin!=0) setTransform(el); // apply spin MAY NOT WORK!!!
             // el.setAttribute('points',points); // copy points array to element
             break;
@@ -2999,6 +3034,7 @@ function makeElement(g) {
             el.setAttribute('id',g.id);
             el.setAttribute('points',g.points);
             el.setAttribute('spin',g.spin);
+            /* DO THIS AT END
             el.setAttribute('stroke',g.stroke);
             el.setAttribute('stroke-width',g.lineW);
             var dash=setLineStyle(g);
@@ -3009,6 +3045,7 @@ function makeElement(g) {
                 el.setAttribute('fill-opacity',g.opacity);
             }
             if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
+            */
             var points=el.points;
             for(var i=0;i<points.length;i++) { // IF HAS SPIN - USE refreshNodes()?
                 nodes.push({'x':points[i].x,'y':points[i].y,'n':Number(g.id*10+i)});
@@ -3021,6 +3058,7 @@ function makeElement(g) {
             el.setAttribute('id',g.id);
             el.setAttribute('points',g.points);
             el.setAttribute('spin',g.spin);
+            /* DO THIS AT END
             el.setAttribute('stroke',g.stroke);
             el.setAttribute('stroke-width',g.lineW);
             var dash=setLineStyle(g);
@@ -3032,6 +3070,7 @@ function makeElement(g) {
                 el.setAttribute('fill-opacity',g.opacity);
             }
             if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
+            */
             var points=el.points;
             for(var i=0;i<points.length;i++) { // IF HAS SPIN - USE refreshNodes()?
                 nodes.push({'x':points[i].x,'y':points[i].y,'n':Number(g.id*10+i)});
@@ -3048,6 +3087,7 @@ function makeElement(g) {
             el.setAttribute('height',g.height);
             el.setAttribute('rx',g.radius);
             el.setAttribute('spin',g.spin);
+            /* DO THIS AT END
             el.setAttribute('stroke',g.stroke);
             el.setAttribute('stroke-width',g.lineW);
             var dash=setLineStyle(g);
@@ -3058,6 +3098,7 @@ function makeElement(g) {
                 el.setAttribute('fill-opacity',g.opacity);
             }
             if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
+            */
             console.log('made box'); // ADD NODES
             nodes.push({'x':(Number(g.x)+Number(g.width/2)),'y':(Number(g.y)+Number(g.height/2)),'n':Number(g.id*10+4)}); // centre - node 0
             nodes.push({'x':g.x,'y':g.y,'n':(g.id*10)}); // top/left - node 1
@@ -3074,6 +3115,7 @@ function makeElement(g) {
             el.setAttribute('rx',g.rx);
             el.setAttribute('ry',g.ry);
             el.setAttribute('spin',g.spin);
+            /* DO THIS AT END
             el.setAttribute('stroke',g.stroke);
             el.setAttribute('stroke-width',g.lineW);
             var dash=setLineStyle(g);
@@ -3084,6 +3126,7 @@ function makeElement(g) {
                 el.setAttribute('fill-opacity',g.opacity);
             }
             if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
+            */
             console.log('made oval'); // ADD NODES
             // add nodes
             nodes.push({'x':g.cx,'y':g.cy,'n':(g.id*10)}); // centre: node 0
@@ -3100,6 +3143,7 @@ function makeElement(g) {
             var d='M'+g.cx+','+g.cy+' M'+g.x1+','+g.y1+' A'+g.r+','+g.r+' 0 '+g.major+','+g.sweep+' '+g.x2+','+g.y2;
             el.setAttribute('d',d);
             el.setAttribute('spin',g.spin);
+            /* DO THIS AT END
             el.setAttribute('stroke',g.stroke);
             el.setAttribute('stroke-width',g.lineW);
             var dash=setLineStyle(g);
@@ -3110,6 +3154,7 @@ function makeElement(g) {
                 el.setAttribute('fill-opacity',g.opacity);
             }
             if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
+            */
             // create nodes for arc start, centre & end points USE refreshNodes()? AND ALLOW FOR SPIN
             nodes.push({'x':g.cx,'y':g.cy,'n':(g.id*10)}); // centre - node 0
             nodes.push({'x':g.x1,'y':g.y1,'n':Number(g.id*10+1)}); // start - node 1
@@ -3150,6 +3195,30 @@ function makeElement(g) {
             nodes.push({'x':g.x,'y':g.y,'n':(g.id*10)});
             if((g.spin!=0)||(g.flip!=0)) setTransform(el);
             break;
+    }
+    if((g.type!='text')&&(g.type!='stamp')) { // set style
+    	el.setAttribute('stroke',g.stroke);
+		el.setAttribute('stroke-width',g.lineW);
+		var dash=setLineStyle(g);
+		if(dash) el.setAttribute('stroke-dasharray',dash);
+		if(g.fillType.startsWith('pattern')) {
+			var n=Number(g.fillType.substr(7));
+			console.log('fillType is '+g.fillType);
+			var html="<pattern id='pattern"+g.id+"' index='"+n+"' width='"+pattern[n].width+"' height='"+pattern[n].height+"' patternUnits='userSpaceOnUse'";
+			if(pattern[n].spin>0) html+=" patternTransform='rotate("+pattern[n].spin+")'";
+			html+='>'+pattern[n].svg+'</pattern>';
+			console.log('pattern HTML: '+html);
+			id('defs').innerHTML+=html;
+			id('pattern'+g.id).firstChild.setAttribute('fill',g.fill);
+			id('pattern'+g.id).lastChild.setAttribute('fill',g.fill);
+			el.setAttribute('fill','url(#pattern'+g.id+')');
+		}
+		else el.setAttribute('fill',(g.fill=='none')?'none':g.fill);
+		if(g.opacity<1) {
+			el.setAttribute('stroke-opacity',g.opacity);
+			el.setAttribute('fill-opacity',g.opacity);
+		}
+		if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
     }
     return el;
 }
@@ -3753,27 +3822,21 @@ function setStyle(el) {
         val=getLineStyle(el);
         console.log('line type: '+val);
         id('lineType').value=val;
-        id('patternOption').disabled=true;
+        id('patternOption').disabled=false;
         val=el.getAttribute('fill');
         console.log('element '+el.getAttribute('id')+' fill: '+val);
-        if(val=='none') {
-        	id('fillType').value='none';
-            // id('fill').style.background='#00000000';
-            id('fillCol').value='#ffffff';
-            // id('opacity').value=0;
+        if(type(element)=='text') {
+			id('lineCol').value=val;
+			id('fillType').value='none';
+		}
+        else if(val.startsWith('url')) {
+        	id('fillType').value='pattern';
+        	id('fillCol').value=id('pattern'+el.id).firstChild.getAttribute('fill');
         }
-        else if(val.startsWith('url')) id('fillType').value='pattern';
+        else if(val=='none') {id('fillType').value='none';}
         else {
-            if(type(element)=='text') {
-                id('lineCol').value=val;
-                // id('line').style.borderColor=val;
-                id('fillType').value='none';
-            }
-            else {
-            	id('fillType').value='solid';
-                id('fillCol').value=val;
-                // id('fill').style.background=val;
-            }
+        	id('fillType').value='solid';
+        	id('fillCol').value=val;
         }
         val=el.getAttribute('fill-opacity');
         if(val) {
@@ -4053,3 +4116,41 @@ else { //Register the ServiceWorker
 		console.log('Service worker has been registered for scope:'+ reg.scope);
 	});
 }
+var pattern=[];
+pattern[0]={'width':4, 'height':2, 'spin':0, 'svg':'<rect x="0" y="1" width="4" height="0.5" stroke="none"/>'};
+pattern[1]={'width':4, 'height':2, 'spin':0, 'svg':'<rect x="0" y="1" width="4" height="1" stroke="none"/>'};
+pattern[2]={'width':4, 'height':4, 'spin':0, 'svg':'<rect x="0" y="2" width="4" height="2" stroke="none"/>'};
+pattern[3]={'width':4, 'height':2, 'spin':90, 'svg':'<rect x="0" y="1" width="4" height="0.5" stroke="none"/>'};
+pattern[4]={'width':4, 'height':2, 'spin':90, 'svg':'<rect x="0" y="1" width="4" height="1" stroke="none"/>'};
+pattern[5]={'width':4, 'height':4, 'spin':90, 'svg':'<rect x="0" y="2" width="4" height="2" stroke="none"/>'};
+pattern[6]={'width':4, 'height':2, 'spin':-45, 'svg':'<rect x="0" y="1" width="4" height="0.5" stroke="none"/>'};
+pattern[7]={'width':4, 'height':2, 'spin':-45, 'svg':'<rect x="0" y="1" width="4" height="1" stroke="none"/>'};
+pattern[8]={'width':4, 'height':4, 'spin':-45, 'svg':'<rect x="0" y="2" width="4" height="2" stroke="none"/>'};
+pattern[9]={'width':4, 'height':2, 'spin':45, 'svg':'<rect x="0" y="1" width="4" height="0.5" stroke="none"/>'};
+pattern[10]={'width':4, 'height':2, 'spin':45, 'svg':'<rect x="0" y="1" width="4" height="1" stroke="none"/>'};
+pattern[11]={'width':4, 'height':4, 'spin':45, 'svg':'<rect x="0" y="2" width="4" height="2" stroke="none"/>'};
+pattern[12]={'width':2, 'height':2, 'spin':0, 'svg':'<rect x="0" y="1" width="2" height="0.5" stroke="none"/><rect x="1" y="0" width="0.5" height="2" stroke="none"/>'};
+pattern[13]={'width':2, 'height':2, 'spin':0, 'svg':'<rect x="0" y="1" width="2" height="1" stroke="none"/><rect x="1" y="0" width="1" height="2" stroke="none"/>'};
+pattern[14]={'width':4, 'height':4, 'spin':0, 'svg':'<rect x="0" y="2" width="4" height="2" stroke="none"/><rect x="2" y="0" width="2" height="4" stroke="none"/>'};
+pattern[15]={'width':2, 'height':2, 'spin':45, 'svg':'<rect x="0" y="1" width="2" height="0.5" stroke="none"/><rect x="1" y="0" width="0.5" height="2" stroke="none"/>'};
+pattern[16]={'width':2, 'height':2, 'spin':45, 'svg':'<rect x="0" y="1" width="2" height="1" stroke="none"/><rect x="1" y="0" width="1" height="2" stroke="none"/>'};
+pattern[17]={'width':4, 'height':4, 'spin':45, 'svg':'<rect x="0" y="2" width="4" height="2" stroke="none"/><rect x="2" y="0" width="2" height="4" stroke="none"/>'};
+pattern[18]={'width':1, 'height':1, 'spin':0, 'svg':'<rect x="0.25" y="0.25" width="0.5" height="0.5" stroke="none"/>'};
+pattern[19]={'width':2, 'height':2, 'spin':0, 'svg':'<rect x="0.5" y="0.5" width="1" height="1" stroke="none"/>'};
+pattern[20]={'width':4, 'height':4, 'spin':0, 'svg':'<rect x="0" y="0" width="3" height="3" stroke="none"/>'};
+pattern[21]={'width':1, 'height':1, 'spin':45, 'svg':'<rect x="0.25" y="0.25" width="0.5" height="0.5" stroke="none"/>'};
+pattern[22]={'width':2, 'height':2, 'spin':45, 'svg':'<rect x="0.5" y="0.5" width="1" height="1" stroke="none"/>'};
+pattern[23]={'width':4, 'height':4, 'spin':45, 'svg':'<rect x="0" y="0" width="3" height="3" stroke="none"/>'};
+pattern[24]={'width':1, 'height':1, 'spin':0, 'svg':'<rect x="0" y="0" width="0.5" height="0.5" stroke="none"/><rect x="0.5" y="0.5" width="0.5" height="0.5" stroke="none"/>'};
+pattern[25]={'width':2, 'height':2, 'spin':0, 'svg':'<rect x="0" y="0" width="1" height="1" stroke="none"/><rect x="1" y="1" width="1" height="1" stroke="none"/>'};
+pattern[26]={'width':4, 'height':4, 'spin':0, 'svg':'<rect x="0" y="0" width="2" height="2" stroke="none"/><rect x="2" y="2" width="2" height="2" stroke="none"/>'};
+pattern[27]={'width':1, 'height':1, 'spin':45, 'svg':'<rect x="0" y="0" width="0.5" height="0.5" stroke="none"/><rect x="0.5" y="0.5" width="0.5" height="0.5" stroke="none"/>'};
+pattern[28]={'width':2, 'height':2, 'spin':45, 'svg':'<rect x="0" y="0" width="1" height="1" stroke="none"/><rect x="1" y="1" width="1" height="1" stroke="none"/>'};
+pattern[29]={'width':4, 'height':4, 'spin':45, 'svg':'<rect x="0" y="0" width="2" height="2" stroke="none"/><rect x="2" y="2" width="2" height="2" stroke="none"/>'};
+pattern[30]={'width':1, 'height':1, 'spin':0, 'svg':'<circle cx="0.5" cy="0.5" r="0.25" stroke="none"/>'};
+pattern[31]={'width':2, 'height':2, 'spin':0, 'svg':'<circle cx="1" cy="1" r="0.5" stroke="none"/>'};
+pattern[32]={'width':4, 'height':4, 'spin':0, 'svg':'<circle cx="2" cy="2" r="1" stroke="none"/>'};
+pattern[33]={'width':1, 'height':1, 'spin':45, 'svg':'<circle cx="0.5" cy="0.5" r="0.25" stroke="none"/>'};
+pattern[34]={'width':2, 'height':2, 'spin':45, 'svg':'<circle cx="1" cy="1" r="0.5" stroke="none"/>'};
+pattern[35]={'width':4, 'height':4, 'spin':45, 'svg':'<circle cx="2" cy="2" r="1" stroke="none"/>'};
+
