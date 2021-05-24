@@ -4,17 +4,11 @@
   "version": 3,
   "icons": [
 	{
-		"src": "icons/icon192px.png",
+		"src": "miro.png",
 		"sizes": "192x192",
 		"type": "image/png",
 		"purpose": "any maskable"
 	},
-	{
-		"src": "icons/icon512px.png",
-		"sizes": "512x512",
-		"type": "image/png",
-		"purpose": "any maskable"
-	}
   ],
   "start_url": "/miro/",
   "display": "standalone",
