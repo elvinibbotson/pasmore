@@ -678,7 +678,7 @@ id('confirmSpin').addEventListener('click',function() {
     }
     showDialog('spinDialog',false);
     cancel();
-})
+});
 id('flipButton').addEventListener('click',function() {
     // if(type(element)=='dim') return; // cannot flip dimensions
     // id('copyLabel').style.color=(anchor)?'white':'gray'; // REDO WITHOUT ANCHOR
@@ -1367,8 +1367,7 @@ id('confirmFillet').addEventListener('click',function() {
 });
 id('defineButton').addEventListener('click',function() {
     id('stampName').value='';
-    if((selection.length>1)&&anchor) showDialog('defineDialog',true);
-    else alert('Please place an anchor for the stamp');
+    if(selection.length>1) showDialog('defineDialog',true);
 });
 id('confirmDefine').addEventListener('click',function() {
     var name=id('stampName').value;
@@ -1376,35 +1375,58 @@ id('confirmDefine').addEventListener('click',function() {
         alert('Enter a name for the stamp');
         return;
     }
-    var ax=parseInt(id('anchor').getAttribute('cx'));
-    var ay=parseInt(id('anchor').getAttribute('cy'));
-    var json='{"name":"'+name+'","svg":"';
-    console.log('preliminary JSON: '+json+' anchor at '+ax+','+ay);
+    // var ax=parseInt(id('anchor').getAttribute('cx'));
+    // var ay=parseInt(id('anchor').getAttribute('cy'));
+    var ax=0; // set anchor point as mid-point of selection
+    var ay=0;
+    var minX=0;
+    var minY=0;
+    var maxX=0;
+    var maxY=0;
+    for(var i=0;i<selection.length;i++) {
+    	var box=getBounds(id(selection[i]));
+    	if(i<1) { // first selected item
+    		minX=box.x;
+    		minY=box.y;
+    		maxX=minX+box.width;
+    		maxY=minY+box.height;
+    	}
+    	else { // subsequent items
+    		if(box.x<minX) minX=box.x;
+    		if(box.y<minY) minY=box.y;
+    		if((box.x+box.width)>maxX) maxX=box.x+box.width;
+    		if((box.y+box.height)>maxY) maxY=box.y+box.height;
+    	}
+    	console.log('after item '+i+' box is '+box.width+'x'+box.height);
+    }
+    ax=(minX+maxX)/2;
+    ay=(minY+maxY)/2;
+    var svg='';
     for(i=0;i<selection.length;i++) {
         el=id(selection[i]);
         var t=type(el);
         console.log('add '+t+' element?');
-        if((t=='dim')||(t=='stamp')) continue; // don't include dimensions or stamps
+        if(t=='stamp') continue; // cannot nest stamps
         switch(type(el)) {
             case 'line':
                 var points=el.points;
                 var pts='';
                 for(var j=0;j<points.length;j++) pts+=(points[i].x-ax)+','+(points[i].y-ay)+' ';
-                json+="<polyline points=\'"+pts+"\' spin=\'"+el.getAttribute('spin')+"\' ";
+                svg+="<polyline points=\'"+pts+"\' spin=\'"+el.getAttribute('spin')+"\' ";
                 break;
             case 'shape':
                 var points=el.points;
                 var pts='';
                 for(var j=0;j<points.length;j++) pts+=(points[i].x-ax)+','+(points[i].y-ay)+' ';
-                json+="<polygon points=\'"+pts+"\' spin=\'"+el.getAttribute('spin')+"\' ";
+                svg+="<polygon points=\'"+pts+"\' spin=\'"+el.getAttribute('spin')+"\' ";
                 break;
             case 'box':
-                json+="<rect x=\'"+(parseInt(el.getAttribute('x'))-ax)+"\' y=\'"+(parseInt(el.getAttribute('y'))-ay)+"\' ";
-                json+="width=\'"+el.getAttribute('width')+"\' height=\'"+el.getAttribute('height')+"\' rx=\'"+el.getAttribute('rx')+"\' spin=\'"+el.getAttribute('spin')+"\' ";
+                svg+="<rect x=\'"+(parseInt(el.getAttribute('x'))-ax)+"\' y=\'"+(parseInt(el.getAttribute('y'))-ay)+"\' ";
+                svg+="width=\'"+el.getAttribute('width')+"\' height=\'"+el.getAttribute('height')+"\' rx=\'"+el.getAttribute('rx')+"\' spin=\'"+el.getAttribute('spin')+"\' ";
                 break;
             case 'oval':
-                json+="<ellipse cx=\'"+(parseInt(el.getAttribute('cx'))-ax)+"\' cy=\'"+(parseInt(el.getAttribute('cy'))-ay)+"\' ";
-                json+="rx=\'"+el.getAttribute('rx')+"\' ry=\'"+el.getAttribute('ry')+"\' spin=\'"+el.getAttribute('spin')+"\' ";
+                svg+="<ellipse cx=\'"+(parseInt(el.getAttribute('cx'))-ax)+"\' cy=\'"+(parseInt(el.getAttribute('cy'))-ay)+"\' ";
+                svg+="rx=\'"+el.getAttribute('rx')+"\' ry=\'"+el.getAttribute('ry')+"\' spin=\'"+el.getAttribute('spin')+"\' ";
                 break;
             case 'arc':
                 var d=el.getAttribute('d');
@@ -1416,33 +1438,44 @@ id('confirmDefine').addEventListener('click',function() {
                 arc.x2-=ax;
                 arc.y2-=ay;
                 d='M'+arc.cx+','+arc.cy+' M'+arc.x1+','+arc.y1+' A'+arc.r+','+arc.r+' 0 '+arc.major+','+arc.sweep+' '+arc.x2+','+arc.y2;
-                json+="<path d=\'"+d+"\' spin=\'"+el.getAttribute('spin')+"\' ";
+                svg+="<path d=\'"+d+"\' spin=\'"+el.getAttribute('spin')+"\' ";
                 break;
             case 'text':
-                json+="<text x=\'"+parseInt(el.getAttribute('x'))-ax+"\' y=\'"+parseInt(el.getAttribute('y'))-ay+"\' ";
-                json+="spin=\'"+el.getAttribute('spin')+"\' flip=\'"+el.getAttribute('flip')+"\' ";
-                json+="stroke=\'"+el.getAttribute('stroke')+"\' fill=\'"+el.getAttribute('fill')+"\' ";
-                json+="font-size=\'"+el.getAttribute('font-size')+"/' ";
+                svg+="<text x=\'"+parseInt(el.getAttribute('x'))-ax+"\' y=\'"+parseInt(el.getAttribute('y'))-ay+"\' ";
+                svg+="spin=\'"+el.getAttribute('spin')+"\' flip=\'"+el.getAttribute('flip')+"\' ";
+                svg+="stroke=\'"+el.getAttribute('stroke')+"\' fill=\'"+el.getAttribute('fill')+"\' ";
+                svg+="font-size=\'"+el.getAttribute('font-size')+"/' ";
                 var val=el.getAttribute('font-style');
-                if(val) json+="font-style=\'"+val+"\' ";
+                if(val) svg+="font-style=\'"+val+"\' ";
                 val=el.getAttribute('font-weight');
-                if(val) json+="font-weight=\'"+val+"\' ";
-                json+=">"+el.innerHTML+"</text>";
+                if(val) svg+="font-weight=\'"+val+"\' ";
+                svg+=">"+el.innerHTML+"</text>";
         }
         if(t!='text') { // set style and complete svg
-            json+="stroke=\'"+el.getAttribute('stroke')+"\' stroke-width=\'"+el.getAttribute('stroke-width')+"\' ";
+            svg+="stroke=\'"+el.getAttribute('stroke')+"\' stroke-width=\'"+el.getAttribute('stroke-width')+"\' ";
             var val=el.getAttribute('stroke-dasharray');
-            if(val) json+="stroke-dasharray=\'"+val+"\' ";
-            json+="fill=\'"+el.getAttribute('fill')+"\' ";
+            if(val) svg+="stroke-dasharray=\'"+val+"\' ";
+            svg+="fill=\'"+el.getAttribute('fill')+"\' ";
             val=el.getAttribute('fill-opacity');
-            if(val) json+="fill-opacity=\'"+val+"\'";
-            json+="/>";
+            if(val) svg+="fill-opacity=\'"+val+"\'";
+            svg+="/>";
         }
-        console.log('JSON so far: '+json);
+        console.log('svg so far: '+svg);
     }
-    json+='"}';
-    console.log('stamp JSON: '+json);
-    download(json,name+'.json','text/plain');
+    console.log('stamp svg: '+svg);
+	var stampStore=db.transaction(['stamps'],'readwrite').objectStore('stamps');
+	var stamp={'name':name,'svg':svg};
+	var request=stampStore.add(stamp);
+	request.onsuccess=function(e) {
+		var n=request.result;
+		console.log("stamp added to database: "+n);
+		var html="<g id='"+name+"'>"+svg+"</g>";
+        id('stamps').innerHTML+=html; // copy stamp svg into <defs>...
+		html="<option value="+name+">"+name+"</option>";
+        id('stampList').innerHTML+=html; //...add stamp name to stampList
+	};
+	request.onerror=function(e) {console.log("error saving stamp");};
+	showDialog('defineDialog',false);
 });
 // STYLES
 id('line').addEventListener('click',function() {
@@ -1587,7 +1620,9 @@ id('fillType').addEventListener('change',function() {
     		return;
     	}
     	else {
-    		id('pattern'+element.id).remove(); // attempt removal of any associated pattern
+    		var ptn=id('pettern'+element.id); // attempt removal of any associated pattern
+    		// console.log('remove '+ptn);
+    		if(ptn) ptn.remove();
 	        element.setAttribute('fill',(type=='none')?'none':col);
     	}
         updateGraph(element.id,['fillType',type]);
@@ -1636,6 +1671,10 @@ id('blur').addEventListener('change',function() {
     }
     else blur=val; // change default blur
     // id('fill').style.opacity=val;
+});
+id('patternOption').addEventListener('click',function() {
+	console.log('click "pattern" - fill is '+element.getAttribute('fill'));
+	if(element && element.getAttribute('fill').startsWith('url')) showDialog('patternMenu',true);
 });
 id('patternMenu').addEventListener('click',function(event) {
 	x=Math.floor((event.clientX-56)/32);
@@ -3027,6 +3066,7 @@ function makeElement(g) {
             if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
             */
             if(g.spin!=0) setTransform(el); // apply spin MAY NOT WORK!!!
+            nodes.push({'x':g.points[0].x,'y':g.points[0].y,'n':Number(g.id*10+0)});
             // el.setAttribute('points',points); // copy points array to element
             break;
         case 'line':
@@ -3537,14 +3577,9 @@ function refreshNodes(el) {
 }
 function remove(elID,keepNodes) {
     console.log('remove element '+elID);
-    var linkedDims=[]; // first check for any linked dimensions
-    for(var i=0;i<dims.length;i++) {
-        if((Math.floor(dims[i].n1/10)==Number(elID))||(Math.floor(dims[i].n2/10)==Number(elID))) {
-            linkedDims.push(dims[i].dim);
-            dims.splice(i,1); // remove dimension link
-        }
-    }
     var el=id(elID);
+    var ptn=id('pattern'+elID); // remove any associated pattern
+    if(ptn) ptn.remove(); 
     var request=db.transaction('graphs','readwrite').objectStore('graphs').delete(Number(elID));
     request.onsuccess=function(event) {
         el.remove();
@@ -3582,7 +3617,7 @@ function select(el,multiple) {
 		console.log('select element '+el.id+' of multiple selection');
 		var box=getBounds(el);
 		var html="<rect x='"+box.x+"' y='"+box.y+"' width='"+box.width+"' height='"+box.height+"' ";
-		html+="stroke='none' fill='blue' fill-opacity='0.25' el='"+hit+"'/>";
+		html+="stroke='none' fill='blue' fill-opacity='0.25' el='"+el.id+"'/>";
 		console.log('box html: '+html);
 		id('selection').innerHTML+=html; // blue block for this element
 	}

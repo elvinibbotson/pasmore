@@ -213,9 +213,11 @@ button {
     background: url(svg/up.svg) center center no-repeat;
     transform: rotate(180deg);
 }
+/*
 #moveButton {
     background: url(svg/move.svg) center center no-repeat;
 }
+*/
 #spinButton {
     background: url(svg/spin.svg) center center no-repeat;
 }
