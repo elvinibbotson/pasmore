@@ -63,6 +63,7 @@ class Point {
 
 scr.w=screen.width;
 scr.h=screen.height;
+alert('screen size '+scr.w+'x'+scr.h);
 dwg.x=dwg.y=copy.x=copy.y=0;
 copy.active=false;
 console.log("screen size "+scr.w+"x"+scr.h);
