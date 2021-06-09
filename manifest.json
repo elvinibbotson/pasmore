@@ -4,26 +4,15 @@
   "version": 3,
   "icons": [
 	{
-		"src": "miro192.png",
-		"sizes": "192x192",
-		"type": "image/png",
-		"purpose": "any maskable"
-	},
-	{
 		"src": "miro512.png",
 		"sizes": "512x512",
 		"type": "image/png",
 		"purpose": "any maskable"
-	},
-	{
-		"src": "splash412x915.png",
-		"sizes": "412x912",
-		"type": "image/png"
 	}
   ],
   "start_url": "/miro/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#FFFF00",
-  "theme_color": "#FFFF00"
+  "background_color": "blue",
+  "theme_color": "blue"
 }
