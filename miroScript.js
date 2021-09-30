@@ -2544,7 +2544,8 @@ id('drawing').addEventListener('pointerup',function() {
 	            graph.lineW=lineW;
 	            graph.lineStyle=lineType;
 	            if(lineType=='none') graph.lineStyle='solid'; // cannot have empty line
-	            graph.fill='none';
+	            graph.fillType='none';
+	            // graph.fill='none';
 	            if(len>=1) addGraph(graph); // avoid zero-size lines
 	            blueline.setAttribute('points','0,0');
 	            cancel();
