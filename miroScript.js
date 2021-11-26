@@ -1590,7 +1590,12 @@ id('textStyle').addEventListener('change',function() {
 });
 id('lineCol').addEventListener('change',function() {
     var val=id('lineCol').value;
-    if(element) { // change selected element
+    if(selection.length>1) {
+    	// change line colour for all selected elements...
+    	// but for now...
+    	alert(selection.length+' elements selected');
+    }
+    else if(element) { // change selected element
         // element=id(elID);
         if(type(element)=='text') { // text is filled not stroked
         console.log('change text colour to '+val);
