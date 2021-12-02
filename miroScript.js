@@ -570,46 +570,6 @@ id('forwardButton').addEventListener('click',function() {
     swopGraphs(element.id,nextID); // ...and in database
     // drawOrder(); // update drawing order
 });
-/* id('moveButton').addEventListener('click',function() {
-    console.log('move '+type(element));
-    if(type(element)=='dim') return; // cannot move dimensions
-    id('moveRight').value=id('moveDown').value=id('moveDist').value=id('moveAngle').value=0;
-    showDialog('textDialog',false);
-    showDialog('moveDialog',true);
-});
-id('confirmMove').addEventListener('click',function() {
-    // read move parameters and adjust element
-    var moveX=parseInt(id('moveRight').value);
-    var moveY=parseInt(id('moveDown').value);
-    var moveD=parseInt(id('moveDist').value);
-    var moveA=parseInt(id('moveAngle').value);
-    console.log('move '+moveX+','+moveY+' '+moveD+'@'+moveA);
-    if((moveD!=0)&&(moveA!=0)) { // polar coordinates - convert to cartesian
-        moveA-=90;
-        moveA*=Math.PI/180;
-        moveX=moveD*Math.cos(moveA);
-        moveY=moveD*Math.sin(moveA);
-    }
-    if(selection.length<1) selection.push(element.id);
-    // REMEMBER POSITIONS/POINTS/SPINS/FLIPS FOR ALL SELECTED ELEMENTS
-    re('member');
-    if(selectedPoints.length>0) { // move all selected points in a line or shape...
-        var points=element.points;
-        while(selectedPoints.length>0) {
-            var n=selectedPoints.pop();
-            points[n].x+=moveX;
-            points[n].y+=moveY;
-        }
-        updateGraph(element.id,['points',element.getAttribute('points')]);
-    }
-    else while(selection.length>0) { // or move all selected elements
-        element=id(selection.pop());
-        move(element,moveX,moveY);
-    }
-    showDialog('moveDialog',false);
-    // DONE BY re-member - id('undoButton').style.display='block';
-    cancel();
-});*/
 id('spinButton').addEventListener('click',function() {
     id('spinAngle').value=0;
     showDialog('spinDialog',true);
@@ -982,377 +942,6 @@ id('copyButton').addEventListener('click',function() {
 	}
 	mode='move';
 });
-/*
-id('doubleButton').addEventListener('click',function() {
-    console.log(selection.length+' elements selected: '+elID);
-    if(selection.length!=1) return; // can only double single selected...
-    var t=type(element); // ...line, shape, box, oval or arc elements
-    if((t=='text')||(t=='dim')||(t=='stamp')||(t=='anchor')) return;
-    showDialog('doubleDialog',true);
-});
-id('confirmDouble').addEventListener('click',function() {
-    console.log('DOUBLE');
-    var d=parseInt(id('offset').value);
-    console.log('double offset: '+d+'mm');
-    showDialog('doubleDialog',false);
-    var graph={}; // initiate new element
-    graph.type=type(element);
-    switch(graph.type) {
-        case 'line':
-            var points=element.points;
-            var count=points.length;
-            var pts=[count]; // points in new line
-            var i=0; // counter
-            for(i=0;i<count;i++) {
-                pts[i]=new Point();
-                console.log('pt '+i+': '+pts[i].x+','+pts[i].y); // JUST CHECKING
-            }
-            var p=new Point(); // current point
-            var p1=new Point(); // next point
-            var a=null; // slope of current and...
-            var a0=null; // ...previous segment
-            var b=null; // y-offset for current and...
-            var b0=null; // ...previous segment
-            var n=null; // normal to current line segment
-            i=0;
-            while(i<count-1) {
-                a=b=null;
-                p.x=points[i].x;
-                p.y=points[i].y;
-                p1.x=points[i+1].x;
-                p1.y=points[i+1].y;
-                console.log('segment '+i+' '+p.x+','+p.y+' to '+p1.x+','+p1.y);
-                if(p.x==p1.x) { // vertical
-                    a='v';
-                    if((p1.y-p.y)>0) pts[i].x=pts[i+1].x=p.x-d;
-                    else pts[i].x=pts[i+1].x=p.x+d;
-                    if(i<1) pts[0].y=p.y; // start point
-                }
-                else if(p.y==p1.y) { // horizontal
-                    a='h';
-                    if((p1.x-p.x)>0) pts[i].y=pts[i+1].y=p.y+d;
-                    else pts[i].y=p[i+1].y=p.y-d;
-                    if(i<1) pts[0].x=p.x; // start point
-                }
-                else { // sloping
-                    a=((p1.y-p.y)/(p1.x-p.x)); // slope of line (dy/dx)
-                    n=Math.atan((p1.x-p.x)/(p1.y-p.y)); // angle of normal to line
-                    console.log('line slope: '+a+'; normal: '+(180*n/Math.PI));
-                    if(p1.y>=p.y) {
-                        p.x-=d*Math.cos(n);
-                        p.y+=d*Math.sin(n);
-                    }
-                    else {
-                        p.x+=d*Math.cos(n);
-                        p.y-=d*Math.sin(n);
-                    }
-                    b=p.y-a*p.x;
-                    console.log('new segment function: y='+a+'.x+'+b);
-                    if(i<1) {
-                        pts[0].x=p.x;
-                        pts[0].y=p.y;
-                    }
-                    else { // fix previous point
-                        if(a0=='v') pts[i].y=a*pts[i].x+b; // previous segment was vertical - x already set
-                        else if(a0=='h') pts[i].x=(pts[i].y-b)/a; // previous segment was horizontal - y set
-                        else { // previous segment was sloping
-                            pts[i].x=(b-b0)/(a0-a);
-                            pts[i].y=a*pts[i].x+b;
-                        }
-                    }
-                }
-                a0=a; // remember function values for segment
-                b0=b;
-                i++;
-            }
-            // end point...
-            console.log('end point is point '+i+' '+p1.x+','+p1.y);
-            if(a0=='h') { // last segment horizontal
-                pts[i].x=p1.x;
-                pts[i].y=p1.y+d;  // OR - ?
-            }
-            else if(a0=='v') { // last segment vertical
-                pts[i].x=p1.x+d; // OR - ?
-                pts[i].y=p1.y;
-            }
-            else { // last segment sloping
-                if(p1.y>=p.y) {
-                    p1.x-=d*Math.cos(n);
-                    p1.y+=d*Math.sin(n);
-                }
-                else {
-                    p1.x+=d*Math.cos(n);
-                    p1.y-=d*Math.sin(n);
-                }
-                pts[i].x=p1.x;
-                pts[i].y=p1.y;
-            }
-            graph.points='';
-            for(i=0;i<count;i++) {
-                console.log('point '+i+': '+pts[i].x+','+pts[i].y);
-                graph.points+=pts[i].x+','+pts[i].y+' ';
-            }
-            graph.spin=element.getAttribute('spin');
-            break;
-        case 'shape':
-            var points=element.points;
-            var count=points.length; // eg. 3-point shape (triangle) has 3 sides
-            var pts=[count]; // points in new line
-            var i=0; // counter
-            for(i=0;i<count;i++) {
-                pts[i]=new Point();
-                console.log('pt '+i+': '+pts[i].x+','+pts[i].y); // JUST CHECKING
-            }
-            var p=new Point(); // current point
-            var p1=new Point(); // next point
-            var a=null; // slope of current and...
-            var a0=null; // ...previous side
-            var b=null; // y-offset for current and...
-            var b0=null; // ...previous side
-            var n=null; // normal to current line side
-            i=0;
-            while(i<=count) {
-                a=b=null;
-                console.log(' point '+i+' ie: '+i%count);
-                p.x=points[i%count].x;
-                p.y=points[i%count].y;
-                p1.x=points[(i+1)%count].x;
-                p1.y=points[(i+1)%count].y;
-                console.log('side '+i+' '+p.x+','+p.y+' to '+p1.x+','+p1.y);
-                if(p.x==p1.x) { // vertical
-                    a='v';
-                    if(p1.y>p.y) pts[i%count].x=pts[(i+1)%count].x=p.x-d;
-                    else pts[i%count].x=pts[(i+1)%count].x=p.x+d;
-                    if(i>0) {
-                        if(a0=='v') pts[i%count].y=p.y; // continues previous segment
-                        else if(a0=='h') pts[i%count].y=pts[(i-1)%count].y; // previous side was horizontal
-                        else pts[i%count].y=a0*pts[i%count].x+b0; // previous side was sloping
-                    }
-                }
-                else if(p.y==p1.y) { // horizontal
-                    a='h';
-                    if(p1.x>p.x) pts[i%count].y=pts[(i+1)%count].y=p.y+d;
-                    else pts[i%count].y=pts[(i+1)%count].y=p.y-d;
-                    if(i>0) {
-                        if(a0=='h') pts[i%count].x=p.x; // continues previous segment
-                        else if(a0=='v') pts[i%count].x=pts[(i-1)%count].x; // previous segment was vertical
-                        else pts[i%count].x=(pts[i%count].y-b0)/a0; // previous side was sloping
-                    }
-                }
-                else { // sloping
-                    a=((p1.y-p.y)/(p1.x-p.x)); // slope of line (dy/dx)
-                    n=Math.atan((p1.x-p.x)/(p1.y-p.y)); // angle of normal to line
-                    console.log('line slope: '+a+'; normal: '+(180*n/Math.PI));
-                    if(p1.y>=p.y) {
-                        p.x-=d*Math.cos(n);
-                        p.y+=d*Math.sin(n);
-                    }
-                    else {
-                        p.x+=d*Math.cos(n);
-                        p.y-=d*Math.sin(n);
-                    }
-                    b=p.y-a*p.x;
-                    console.log('new segment function: y='+a+'.x+'+b);
-                    if(i>0) { // fix previous point
-                        console.log('fix previous point - a0 is '+a0);
-                        if(a0=='v') pts[i%count].y=a*pts[i%count].x+b; // previous side was vertical - x already set
-                        else if(a0=='h') pts[i%count].x=(pts[i%count].y-b)/a; // previous side was horizontal - y set
-                        else if(a0==a) { // continues slope of previous segment
-                            pts[i%count].x=p.x;
-                            pts[i%count].y=p.y;
-                        }
-                        else { // previous side was sloping
-                            console.log('fix point '+i+' a:'+a+' a0:'+a0+' b:'+b+' b0:'+b0);
-                            pts[i%count].x=(b-b0)/(a0-a);
-                            pts[i%count].y=a*pts[i%count].x+b;
-                        }
-                    }
-                }
-                a0=a; // remember function values for segment
-                b0=b;
-                i++;
-            }
-            graph.points='';
-            for(i=0;i<count;i++) {
-                console.log('point '+i+': '+pts[i].x+','+pts[i].y);
-                graph.points+=pts[i].x+','+pts[i].y+' ';
-            }
-            graph.spin=element.getAttribute('spin');
-            break;
-        case 'box':
-            x=parseInt(element.getAttribute('x'));
-            y=parseInt(element.getAttribute('y'));
-            w=parseInt(element.getAttribute('width'));
-            h=parseInt(element.getAttribute('height'));
-            if((d<0)&&((w+2*d<1)||(h+2*d<1))) {
-                alert('cannot fit inside');
-                return;
-            }
-            graph.spin=element.getAttribute('spin'); // IF HAS SPIN NEED TO SPIN AROUND ORIGINAL BOX ORIGIN
-            if(graph.spin!=0) { // spin around orignal box anchor
-                var r=Math.sqrt(2)*d;
-                var s=(45-graph.spin)*Math.PI/180; // radians
-                graph.x=x-(r*Math.sin(s));
-                graph.y=y-(r*Math.cos(s));
-            }
-            else {
-                graph.x=x-d;
-                graph.y=y-d;
-            }
-            graph.width=w+2*d;
-            graph.height=h+2*d;
-            var n=parseInt(element.getAttribute('rx'));
-            console.log('corner radius: '+n);
-            if(n!=0) n+=d;
-            if(n<0) n=0;
-            graph.radius=n;
-            console.log('double as '+n);
-            // ADD STYLING AFTER switch SECTION?
-            break;
-        case 'oval':
-            x=parseInt(element.getAttribute('cx'));
-            y=parseInt(element.getAttribute('cy'));
-            var rx=parseInt(element.getAttribute('rx'));
-            var ry=parseInt(element.getAttribute('ry'));
-            if((d<0)&&((rx+d)<1)||((ry+d)<1)) {
-                alert('cannot fit inside');
-                return;
-            }
-            graph.cx=x;
-            graph.cy=y;
-            graph.rx=rx+d;
-            graph.ry=ry+d;
-            graph.spin=element.getAttribute('spin');
-            break;
-        case 'arc':
-            var d=element.getAttribute('d');
-            getArc(d);
-            var r=arc.r+d; // new arc radius
-            if(r<0) {
-                alert('cannot fit inside');
-                return;
-            }
-            graph.r=r;
-            r/=arc.r; // ratio of new/old radii
-            graph.cx=arc.cx; // same centre point
-            graph.cy=arc.cy;
-            dx=arc.x1-arc.cx; // calculate new start point
-            dy=arc.y1-arc.cy;
-            dx*=r;
-            dy*=r;
-            graph.x1=arc.cx+dx;
-            graph.y1=arc.cy+dy;
-            dx=arc.x2-arc.cx; // calculate new end point
-            dy=arc.y2-arc.cy;
-            dx*=r;
-            dy*=r;
-            graph.x2=arc.cx+dx;
-            graph.y2=arc.cy+dy;
-            graph.major=arc.major;
-            graph.sweep=arc.sweep;
-            graph.spin=arc.spin;
-    }
-    graph.stroke=element.getAttribute('stroke');
-    graph.lineW=element.getAttribute('stroke-width');
-    graph.lineStyle=getLineStyle(element);
-    graph.fill=element.getAttribute('fill');
-    n=element.getAttribute('fill-opacity');
-    if(n) graph.opacity=n;
-    addGraph(graph);
-    cancel();
-});
-id('repeatButton').addEventListener('click',function() {
-    if(type(element)=='dim') return; // cannot move dimensions
-    showDialog('textDialog',false);
-    id('countH').value=id('countV').value=1;
-    id('distH').value=id('distV').value=0;
-    showDialog('repeatDialog',true);
-});
-id('confirmRepeat').addEventListener('click',function() {
-    var nH=parseInt(id('countH').value);
-    var nV=parseInt(id('countV').value);
-    var dH=parseInt(id('distH').value);
-    var dV=parseInt(id('distV').value);
-    console.log(nH+' copies across at '+dH+'mm; '+nV+' copie down at '+dV+'mm');
-    element=id(elID);
-    for(var i=0;i<nH;i++) {
-        for(var j=0;j<nV;j++) {
-            if(i<1 && j<1) continue; // skip in-place duplicate
-            var g={};
-            g.type=type(element);
-            if(g.type!='stamp') { // stamps don't have style
-                g.stroke=element.getAttribute('stroke');
-                g.lineW=element.getAttribute('stroke-width');
-                g.lineStyle=getLineStyle(element);
-                g.fill=element.getAttribute('fill');
-                var val=element.getAttribute('fill-opacity');
-                if(val) g.opacity=val;
-            }
-            g.spin=element.getAttribute('spin');
-            switch(g.type) {
-                case 'line':
-                    g.points='';
-                    for(var p=0;p<element.points.length;p++) {
-                        g.points+=element.points[p].x+(i*dH)+',';
-                        g.points+=element.points[p].y+(j*dV)+' ';
-                    }
-                    // g.setAttribute('points',points);
-                    // addGraph(g);
-                    break;
-                case 'box':
-                    g.x=Number(element.getAttribute('x'))+(i*dH);
-                    g.y=Number(element.getAttribute('y'))+(j*dV);
-                    g.width=Number(element.getAttribute('width'));
-                    g.height=Number(element.getAttribute('height'));
-                    g.radius=Number(element.getAttribute('rx'));
-                    console.log('copy['+i+','+j+'] '+g.type+' at '+g.x+','+g.y);
-                    // addGraph(g);
-                    break;
-                case 'oval':
-                    g.cx=Number(element.getAttribute('cx'))+(i*dH);
-                    g.cy=Number(element.getAttribute('cy'))+(j*dV);
-                    g.rx=Number(element.getAttribute('rx'));
-                    g.ry=Number(element.getAttribute('ry'));
-                    console.log('copy '+g.type+' at '+g.cx+','+g.cy);
-                    break;
-                case 'arc':
-                    var d=element.getAttribute('d');
-                    getArc(d);
-                    g.cx=arc.cx+(i*dH);
-                    g.cy=arc.cy+(j*dV);
-                    g.x1=arc.x1+(i*dH);
-                    g.y1=arc.y1+(j*dV);
-                    g.x2=arc.x2+(i*dH);
-                    g.y2=arc.y2+(j*dV);
-                    g.r=arc.r;
-                    g.major=arc.major;
-                    g.sweep=arc.sweep;
-                    console.log('copy['+i+','+j+'] of '+g.type+' at '+g.cx+','+g.cy);
-                    break;
-                case 'text':
-                    g.x=Number(element.getAttribute('x'))+(i*dH);
-                    g.y=Number(element.getAttribute('y'))+(j*dV);
-                    g.flip=Number(element.getAttribute('flip'));
-                    g.text=element.innerHTML;
-                    g.textSize=Number(element.getAttribute('font-size'));
-                    var style=element.getAttribute('font-style');
-                    g.textStyle=(style=='italic')?'italic':'fine';
-                    if(element.getAttribute('font-weight')=='bold') g.textStyle='bold';
-                    break;
-                case 'stamp':
-                    g.x=Number(element.getAttribute('x'))+(i*dH);
-                    g.y=Number(element.getAttribute('y'))+(j*dV);
-                    g.flip=Number(element.getAttribute('flip'));
-                    g.name=element.getAttribute('href').substr(1); // strip off leading #
-                    break;
-            }
-            addGraph(g); // ENSURE THIS CREATES SEPARATE GRAPHS & NOT SAME ONE SEVERAL TIMES!
-        }
-    }
-    showDialog('repeatDialog',false);
-    cancel();
-});
-*/
 id('filletButton').addEventListener('click',function() {
     if(type(element!='box')) return; // can only fillet box corners
     id('filletR').value=parseInt(element.getAttribute('rx'));
@@ -1480,11 +1069,40 @@ id('confirmDefine').addEventListener('click',function() {
 });
 // STYLES
 id('line').addEventListener('click',function() {
+	setStyle();
     showDialog('stylesDialog',true);
 });
 id('lineType').addEventListener('change',function() {
     var type=event.target.value;
     console.log('line type: '+type);
+    // TRY THIS:
+    if(selection.length>0) {
+    	for (var i=0;i<selection.length;i++) {
+    		console.log('change line width for selected element '+i);
+    		var el=id(selection[i]);
+    		w=parseInt(el.getAttribute('stroke-width'));
+    		var val=null;
+        	switch(type) {
+            	case 'none':
+            	case 'solid':
+                	// var val=null;
+                	break;
+            	case 'dashed':
+                	val=(4*w)+' '+(4*w);
+                	break;
+            	case 'dotted':
+                	val=w+' '+w;
+        	}
+        	console.log('set element '+el.id+' line style to '+type);
+        	el.setAttribute('stroke-dasharray',val);
+        	val=el.getAttribute('stroke');
+        	el.setAttribute('stroke',(type=='none')?'none':val);
+        	// el.setAttribute('stroke',(type=='none')?'none':lineCol);
+        	updateGraph(el.id,['lineStyle',type]);
+        	updateGraph(el.id,['stroke',(type=='none')?'none':lineCol]);
+    	}
+    }
+    /*
     if(element) { // change selected element
         // element=id(elID);
         w=parseInt(element.getAttribute('stroke-width'));
@@ -1505,6 +1123,7 @@ id('lineType').addEventListener('change',function() {
         updateGraph(element.id,['lineStyle',type]);
         updateGraph(element.id,['stroke',(type=='none')?'none':lineCol]);
     }
+    */
     else { // change default line type
         lineType=type;
     }
@@ -1512,6 +1131,17 @@ id('lineType').addEventListener('change',function() {
 });
 id('lineWidth').addEventListener('change',function() {
     var val=event.target.value;
+    // TRY THIS:
+    if(selection.length>0) {
+    	for(var i=0;i<selection.length;i++) {
+    		var el=id(selection[i]);
+    		var lw=val;
+        	el.setAttribute('stroke-width',lw);
+        	if(el.getAttribute('stroke-dasharray')) el.setAttribute('stroke-dasharray',lw+' '+lw);
+        	updateGraph(el.id,['lineW',lw]);
+    	}
+    }
+    /*
     if(element) { // change selected element
         // element=id(elID);
         var lw=val;
@@ -1519,6 +1149,7 @@ id('lineWidth').addEventListener('change',function() {
         if(element.getAttribute('stroke-dasharray')) element.setAttribute('stroke-dasharray',lw+' '+lw);
         updateGraph(element.id,['lineW',lw]);
     }
+    */
     else { // change default line width
         lineW=val;
         console.log('set default line width to '+val);
@@ -1527,6 +1158,29 @@ id('lineWidth').addEventListener('change',function() {
 });
 id('textFont').addEventListener('change',function() {
     var val=event.target.value;
+    // TRY THIS:
+    if(selection.length>0) {
+    	for(var i=0;i<selection.length;i++) {
+    		var el=id(selection[i]);
+    		if(type(el)=='text') {
+            	switch(val) {
+                	case 'sans':
+                    	el.setAttribute('font-family','Sans-serif');
+                    	break;
+                	case 'serif':
+                    	el.setAttribute('font-family','Serif');
+                    	break;
+                	case 'italic':
+                    	el.setAttribute('font-family','Monospaced');
+                    	break;
+                	case 'cursive':
+                    	el.setAttribute('font-family','Cursive');
+            	}
+            	updateGraph(el.id,['textFont',val]);
+        	}
+    	}
+    }
+    /*
     if(element) { // change selected text element
         // element=id(elID);
         if(type(element)=='text') {
@@ -1547,9 +1201,23 @@ id('textFont').addEventListener('change',function() {
         }
         else textFont=val;
     }
+    */
+    else textFont=val;
 });
 id('textSize').addEventListener('change',function() {
     var val=event.target.value;
+    // TRY THIS:
+    if(selection.length>0) {
+    	for (var i=0;i<selection.length;i++) {
+    		console.log('change text size for selected element '+i);
+    		var el=id(selection[i]);
+    		if(type(el)=='text') {
+            	el.setAttribute('font-size',val);
+            	updateGraph(el.id,['textSize',val]);
+        	}
+    	}
+    }
+    /*
     if(element) { // change selected text element
         // element=id(elID);
         if(type(element)=='text') {
@@ -1558,6 +1226,7 @@ id('textSize').addEventListener('change',function() {
             updateGraph(element.id,['textSize',val]);
         }
     }
+    */
     else { // change default line width
         textSize=val;
         id('text').style.fontSize=(val*2)+'pt';
@@ -1565,6 +1234,30 @@ id('textSize').addEventListener('change',function() {
 });
 id('textStyle').addEventListener('change',function() {
     var val=event.target.value;
+    // TRY THIS:
+    if(selection.length>0) {
+    	for (var i=0;i<selection.length;i++) {
+    		console.log('change text style for selected element '+i);
+    		var el=id(selection[i]);
+    		if(type(el)=='text') {
+            	switch(val) {
+                	case 'fine':
+                    	el.setAttribute('font-style','normal');
+                    	el.setAttribute('font-weight','normal');
+                    break;
+            		case 'bold':
+                    	el.setAttribute('font-style','normal');
+                    	el.setAttribute('font-weight','bold');
+                    break;
+                	case 'italic':
+                    	el.setAttribute('font-style','italic');
+                    	el.setAttribute('font-weight','normal');
+            	}
+            	updateGraph(el.id,['textStyle',val]);
+        	}
+    	}
+    }
+    /*
     if(element) { // change selected text element
         // element=id(elID);
         if(type(element)=='text') {
@@ -1584,12 +1277,29 @@ id('textStyle').addEventListener('change',function() {
             updateGraph(element.id,['textStyle',val]);
         }
     }
+    */
     else { // change default line width
         textStyle=val;
     }
 });
 id('lineCol').addEventListener('change',function() {
     var val=id('lineCol').value;
+    // TRY THIS:
+    if(selection.length>0) {
+    	for (var i=0;i<selection.length;i++) {
+    		console.log('change stroke colour for selected element '+i);
+    		var el=id(selection[i]);
+    		if(type(el)=='text') {
+    			el.setAttribute('fill',val);
+    			updateGraph(el.id,['fill',val]);
+    		}
+    		else {
+    			el.setAttribute('stroke',val);
+    			updateGraph(el.id,['stroke',val]);
+    		}
+    	}
+    }
+    /*
     if(element) { // change selected element
         // element=id(elID);
         if(type(element)=='text') { // text is filled not stroked
@@ -1602,6 +1312,7 @@ id('lineCol').addEventListener('change',function() {
             updateGraph(element.id,['stroke',val]);
         }
     }
+    */
     else { // change default line shade
         lineCol=val;
     }
@@ -1612,6 +1323,26 @@ id('lineCol').addEventListener('change',function() {
 id('fillType').addEventListener('change',function() {
     var type=event.target.value;
     console.log('fill type: '+type);
+    // TRY THIS:
+    if(selection.length>0) {
+    	var col=id('fillCol').value;
+    	for (var i=0;i<selection.length;i++) {
+    		console.log('change fill type for selected element '+i);
+    		var el=id(selection[i]);
+    		if(type=='pattern') {
+    			showDialog('patternMenu',true);
+    			return;
+    		}
+    		else {
+    			var ptn=id('pettern'+el.id); // attempt removal of any associated pattern
+    			// console.log('remove '+ptn);
+    			if(ptn) ptn.remove();
+	        	el.setAttribute('fill',(type=='none')?'none':col);
+    		}
+        	updateGraph(el.id,['fillType',type]);
+    	}
+    }
+    /*
     if(element) { // change selected element
         // element=id(elID);
         var col=id('fillCol').value;
@@ -1628,6 +1359,7 @@ id('fillType').addEventListener('change',function() {
     	}
         updateGraph(element.id,['fillType',type]);
     }
+    */
     else { // change default fillType type
         fillType=type;
     }
@@ -1635,6 +1367,19 @@ id('fillType').addEventListener('change',function() {
 });
 id('fillCol').addEventListener('change',function() {
     var val=id('fillCol').value;
+    // TRY THIS:
+    if(selection.length>0) {
+    	var col=id('fillCol').value;
+    	for (var i=0;i<selection.length;i++) {
+    		console.log('change fill colour for selected element '+i);
+    		var el=id(selection[i]);
+    		var type=id('fillType').value;
+        	if(type=='pattern') id('pattern'+element.id).firstChild.setAttribute('fill',val);
+        	else el.setAttribute('fill',(type=='solid')?val:'none');
+        	updateGraph(element.id,['fill',val]);
+    	}
+    }
+    /*
     if(element) { // change selected element
         // element=id(elID);
         // var fillCol=val;
@@ -1643,6 +1388,7 @@ id('fillCol').addEventListener('change',function() {
         else element.setAttribute('fill',(type=='solid')?val:'none');
         updateGraph(element.id,['fill',val]);
     }
+    */
     else { // change default fill colour
         fillCol=val;
     }
@@ -1651,18 +1397,43 @@ id('fillCol').addEventListener('change',function() {
 id('opacity').addEventListener('change',function() {
     var val=event.target.value;
     console.log('opacity: '+val);
+    // TRY THIS:
+    if(selection.length>0) {
+    	var col=id('fillCol').value;
+    	for (var i=0;i<selection.length;i++) {
+    		console.log('change fill colour for selected element '+i);
+    		var el=id(selection[i]);
+    		el.setAttribute('stroke-opacity',val);
+        	el.setAttribute('fill-opacity',val);
+        	updateGraph(el.id,['opacity',val]);
+    	}
+    }
+    /*
     if(element) { // change selected element
         // element=id(elID);
         element.setAttribute('stroke-opacity',val);
         element.setAttribute('fill-opacity',val);
         updateGraph(element.id,['opacity',val]);
     }
+    */
     else opacity=val; // change default opacity
     id('fill').style.opacity=val;
 });
 id('blur').addEventListener('change',function() {
     var val=event.target.value;
     console.log('blur: '+val);
+    // TRY THIS:
+    if(selection.length>0) {
+    	var col=id('fillCol').value;
+    	for (var i=0;i<selection.length;i++) {
+    		console.log('change blur for selected element '+i);
+    		var el=id(selection[i]);
+    		if(val>0) el.setAttribute('filter','url(#blur'+val+')');
+        	else el.setAttribute('filter','none');
+        	updateGraph(el.id,['blur',val]);
+    	}
+    }
+    /*
     if(element) { // change selected element
         // element=id(elID);
         console.log('set blur filter to '+val);
@@ -1670,6 +1441,7 @@ id('blur').addEventListener('change',function() {
         else element.setAttribute('filter','none');
         updateGraph(element.id,['blur',val]);
     }
+    */
     else blur=val; // change default blur
     // id('fill').style.opacity=val;
 });
@@ -1844,12 +1616,12 @@ id('drawing').addEventListener('pointerdown',function() {
                     pts+=x+','+y;
                 }
                 else { // insert point midway between selected point and next point
-                    console.log('add between points '+val+'('+points[val].x+','+points[val].y+') and '+(val+1));
-                    x=Math.round((points[val].x+points[val+1].x)/2);
-                    y=Math.round((points[val].y+points[val+1].y)/2);
+                    console.log('add between points '+node+'('+points[node].x+','+points[node].y+') and '+(node+1));
+                    x=Math.round((points[node].x+points[node+1].x)/2);
+                    y=Math.round((points[node].y+points[node+1].y)/2);
                     var i=0;
                     while(i<points.length) {
-                        if(i==val) pts+=points[i].x+','+points[i].y+' '+x+','+y+' ';
+                        if(i==node) pts+=points[ i].x+','+points[i].y+' '+x+','+y+' ';
                         else pts+=points[i].x+','+points[i].y+' ';
                         console.log('i: '+i+' pts: '+pts);
                         i++;
@@ -1867,7 +1639,7 @@ id('drawing').addEventListener('pointerdown',function() {
                 console.log('point '+node+': '+points[node].x+','+points[node].y);
                 var pts='';
                 for(var i=0;i<points.length-1;i++) {
-                    if(i<val) pts+=points[i].x+','+points[i].y+' ';
+                    if(i<node) pts+=points[i].x+','+points[i].y+' ';
                     else pts+=points[i+1].x+','+points[i+1].y+' ';
                 }
                 element.setAttribute('points',pts);
@@ -2034,7 +1806,7 @@ function drag(event) {
     }
     if(mode.startsWith('movePoint')) {
         // var n=parseInt(mode.substr(9));
-        // console.log('drag polyline point '+n);
+        console.log('drag polyline point '+n+' to '+x+','+y);
         id('bluePolyline').points[node].x=x;
         id('bluePolyline').points[node].y=y;
     }
@@ -2850,7 +2622,7 @@ id('drawing').addEventListener('pointerup',function() {
                             id('selection').innerHTML+=html; // blue block for first element
                         }
                         */
-                        setStyle(); // SET STYLES TO DEFAULTS
+                        // TRY WITHOUT setStyle(); // SET STYLES TO DEFAULTS
                     }
                     setButtons();
                 } // else ignore clicks on items already selected
@@ -2900,16 +2672,8 @@ function cancel() { // cancel current operation and return to select mode
     id('guides').style.display='none';
     showEditTools(false);
     id('textDialog').style.display='none';
-    setStyle(); // set styles to defaults
+    // TRY WITHOUT setStyle(); // set styles to defaults
 }
-/* function checkDims(el) {
-    console.log('check linked dimensions for element '+el.id);
-    for(var i=0;i<dims.length;i++) {
-        if((Math.floor(dims[i].n1/10)==Number(el.id))||(Math.floor(dims[i].n2/10)==Number(el.id))) {
-            refreshDim(dims[i]); // adjust and redraw linked dimension
-        }
-    }
-} */
 function download(content,fileName,contentType) {
 	console.log("save as "+fileName);
 	var a=document.createElement('a');
@@ -3590,7 +3354,6 @@ function remove(elID,keepNodes) {
  	request.onerror=function(event) {
 	    console.log("error deleting element "+el.id);
 	};
-	while(linkedDims.length>0) remove(linkedDims.pop()); // remove any linked dimensions
 }
 function reset() {
     zoom=1; // establish zoom level to fit drawing to screen
@@ -3615,7 +3378,7 @@ function reset() {
     id('zoom').innerHTML=zoom;
 }
 function select(el,multiple) {
-	if(multiple) { // one of multiple seletion - highlight in blue
+	if(multiple) { // one of multiple selection - highlight in blue
 		console.log('select element '+el.id+' of multiple selection');
 		var box=getBounds(el);
 		var html="<rect x='"+box.x+"' y='"+box.y+"' width='"+box.width+"' height='"+box.height+"' ";
@@ -3625,7 +3388,7 @@ function select(el,multiple) {
 	}
 	else {
 		console.log('select '+el.id+' stroke: '+el.getAttribute('stroke')+' fill: '+el.getAttribute('fill'));
-		setStyle(el); // set style to suit selected element
+		// TRY WITHOUT setStyle(el); // set style to suit selected element
 		// add node markers, boxes and handles to single selected item
 		id('handles').innerHTML=''; // clear any handles then add handles for selected element 
 		// first draw node markers?
@@ -3810,7 +3573,8 @@ function setLineStyle(g) {
     else if(g.lineStyle=='dotted') return g.lineW+" "+g.lineW;
     // else return null;
 }
-function setStyle(el) {
+function setStyle() {
+	var el=(selection.length>0)?id(selection[0]):null;
     if(!el ||(type(el)=='stamp')) { // no element/stamp - show default styles
         id('lineType').value=lineType;
         id('line').style.borderBottomStyle=lineType;
@@ -3830,7 +3594,7 @@ function setStyle(el) {
         id('fill').style.backgroundColor=fillCol;
         id('fillCol').value=fillCol;
         id('fill').style.fontStyle=(textStyle=='italic')?'italic':'normal';
-        id('fill').style.fontWeigth=(textStyle=='bold')?'bold':'normal';
+        id('fill').style.fontWeight=(textStyle=='bold')?'bold':'normal';
         id('line').style.opacity=opacity;
         id('fill').style.opacity=opacity;
         id('opacity').value=opacity;
@@ -3838,7 +3602,6 @@ function setStyle(el) {
     }
     else { // show styles for element el
         console.log('SET STYLES FOR ELEMENT '+el.id);
-        
         id('line').style.borderBottomStyle=val;
         var val=el.getAttribute('stroke-width');
         console.log('line width: '+val);
