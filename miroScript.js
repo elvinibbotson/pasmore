@@ -1373,10 +1373,12 @@ id('fillCol').addEventListener('change',function() {
     	for (var i=0;i<selection.length;i++) {
     		console.log('change fill colour for selected element '+i);
     		var el=id(selection[i]);
-    		var type=id('fillType').value;
-        	if(type=='pattern') id('pattern'+element.id).firstChild.setAttribute('fill',val);
-        	else el.setAttribute('fill',(type=='solid')?val:'none');
-        	updateGraph(element.id,['fill',val]);
+    		// console.log('element '+i+' is '+type(el));
+    		if(type(el)=='text') continue; // text fill colour uses line colour
+    		var fill=id('fillType').value;
+        	if(fill=='pattern') id('pattern'+element.id).firstChild.setAttribute('fill',val);
+        	else el.setAttribute('fill',(fill=='solid')?val:'none');
+        	updateGraph(el.id,['fill',val]);
     	}
     }
     /*
@@ -3653,11 +3655,10 @@ function setStyle() {
         else id('blur').value=0;
         if(type(element)=='text') {
             val=el.getAttribute('font-family');
+            console.log('font: '+val);
             id('textFont').value=val;
-            // id('fill').style.fontFamily=val;
             val=el.getAttribute('font-size');
             id('textSize').value=val;
-            // id('fill').style.fontSize=(val*2)+'pt';
             id('textStyle').value='fine';
             id('fill').style.fontStyle='normal';
             val=el.getAttribute('font-style');
@@ -3665,13 +3666,11 @@ function setStyle() {
                 id('textStyle').value='italic';
                 // id('text').style.fontStyle='italic';
             }
-            // id('fill').style.fontWeight='normal';
             val=el.getAttribute('font-weight');
             if(val=='bold') {
                 id('textStyle').value='bold';
                 // id('text').style.fontWeight='bold';
             }
-            // id('fill').style.color=id('lineCol').value=el.getAttribute('fill');
         } 
     }
 }
