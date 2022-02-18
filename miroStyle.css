@@ -213,11 +213,6 @@ button {
     background: url(svg/up.svg) center center no-repeat;
     transform: rotate(180deg);
 }
-/*
-#moveButton {
-    background: url(svg/move.svg) center center no-repeat;
-}
-*/
 #spinButton {
     background: url(svg/spin.svg) center center no-repeat;
 }
@@ -230,11 +225,6 @@ button {
 #copyButton {
     background: url(svg/copy.svg) center center no-repeat;
 }
-/*
-#repeatButton {
-    background: url(svg/repeat.svg) center center no-repeat;
-}
-*/
 #filletButton {
     background: url(svg/roundbox.svg) center center no-repeat;
 }
@@ -294,19 +284,14 @@ button {
 	background: white url('patterns.png') no-repeat center;
 }
 #textDialog {
-    position: fixed;
-    top: 0;
-    left: 0;
-    padding: 5px;
-    border-radius: 3px;
-    z-index: 10;
+    z-index: 8;
     display: none;
 }
 #text {
     width: 96px;
 }
-#dimDialog {
-    left: 8px;
+#removeDialog {
+    top: 50px;
 }
 #combiDialog {
     left: 8px;
