@@ -885,6 +885,12 @@ id('copyButton').addEventListener('click',function() {
             }
             g.spin=element.getAttribute('spin');
             switch(g.type) {
+            	case 'sketch':
+            		console.log(element.points.length+' points to copy');
+            		g.points=[]; // array of points
+	        		for(var j=0;j<element.points.length;j++) g.points.push({x:element.points[j].x,y:element.points[j].y});
+                    console.log('first point: '+g.points[0].x+','+g.points[0].y);
+            		break;
                 case 'line':
                     g.points='';
                     for(var p=0;p<element.points.length;p++) {
@@ -1069,7 +1075,7 @@ id('confirmDefine').addEventListener('click',function() {
 });
 // STYLES
 id('line').addEventListener('click',function() {
-	setStyle();
+	// setStyle();
     showDialog('stylesDialog',true);
 });
 id('lineType').addEventListener('change',function() {
@@ -1435,15 +1441,6 @@ id('blur').addEventListener('change',function() {
         	updateGraph(el.id,['blur',val]);
     	}
     }
-    /*
-    if(element) { // change selected element
-        // element=id(elID);
-        console.log('set blur filter to '+val);
-        if(val>0) element.setAttribute('filter','url(#blur'+val+')');
-        else element.setAttribute('filter','none');
-        updateGraph(element.id,['blur',val]);
-    }
-    */
     else blur=val; // change default blur
     // id('fill').style.opacity=val;
 });
@@ -1839,15 +1836,6 @@ function drag(event) {
                 // console.log('dragged to '+x+','+y);
             }
             break;
-        /*
-        case 'copy':
-        		console.log('drag '+selection.length+' items');
-        		copy.x=x-x0;
-        		copy.y=y-y0;
-        		console.log('by '+copy.x+','+copy.y);
-        		id('selection').setAttribute('transform','translate('+copy.x+','+copy.y+')');
-        	break;
-        	*/
         case 'boxSize':
             var aspect=w/h;
             dx=(node%2<1)?(x-x0):(x0-x);
@@ -2626,6 +2614,7 @@ id('drawing').addEventListener('pointerup',function() {
                         */
                         // TRY WITHOUT setStyle(); // SET STYLES TO DEFAULTS
                     }
+                    setStyle();
                     setButtons();
                 } // else ignore clicks on items already selected
                 showEditTools(true);
@@ -2642,6 +2631,7 @@ id('undoButton').addEventListener('click',function() {
 // UTILITY FUNCTIONS
 function addGraph(el) {
     console.log('add '+el.type+' element - spin: '+el.spin);
+    if(el.points) console.log(el.points.length+' points');
     var request=db.transaction('graphs','readwrite').objectStore('graphs').add(el);
     request.onsuccess=function(event) {
         // console.log('result: '+event.target.result);
@@ -2818,42 +2808,18 @@ function makeElement(g) {
         case 'sketch':
             var el=document.createElementNS(ns,'path');
             el.setAttribute('id',g.id);
-            // var points=g.points;
+            console.log('points: '+g.points);
+            el.setAttribute('points',g.points);
             el.setAttribute('d',sketchPath(g.points));
             el.setAttribute('spin',g.spin);
-            /* DO THIS AT END
-            el.setAttribute('stroke',g.stroke);
-            el.setAttribute('stroke-width',g.lineW);
-            var dash=setLineStyle(g);
-            if(dash) el.setAttribute('stroke-dasharray',dash);
-            el.setAttribute('fill',g.fill);
-            if(g.opacity<1) {
-                el.setAttribute('stroke-opacity',g.opacity);
-                el.setAttribute('fill-opacity',g.opacity);
-            }
-            if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
-            */
             if(g.spin!=0) setTransform(el); // apply spin MAY NOT WORK!!!
             nodes.push({'x':g.points[0].x,'y':g.points[0].y,'n':Number(g.id*10+0)});
-            // el.setAttribute('points',points); // copy points array to element
             break;
         case 'line':
             var el=document.createElementNS(ns,'polyline');
             el.setAttribute('id',g.id);
             el.setAttribute('points',g.points);
             el.setAttribute('spin',g.spin);
-            /* DO THIS AT END
-            el.setAttribute('stroke',g.stroke);
-            el.setAttribute('stroke-width',g.lineW);
-            var dash=setLineStyle(g);
-            if(dash) el.setAttribute('stroke-dasharray',dash);
-            el.setAttribute('fill',g.fill);
-            if(g.opacity<1) {
-                el.setAttribute('stroke-opacity',g.opacity);
-                el.setAttribute('fill-opacity',g.opacity);
-            }
-            if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
-            */
             var points=el.points;
             for(var i=0;i<points.length;i++) { // IF HAS SPIN - USE refreshNodes()?
                 nodes.push({'x':points[i].x,'y':points[i].y,'n':Number(g.id*10+i)});
@@ -2866,19 +2832,6 @@ function makeElement(g) {
             el.setAttribute('id',g.id);
             el.setAttribute('points',g.points);
             el.setAttribute('spin',g.spin);
-            /* DO THIS AT END
-            el.setAttribute('stroke',g.stroke);
-            el.setAttribute('stroke-width',g.lineW);
-            var dash=setLineStyle(g);
-            if(dash) el.setAttribute('stroke-dasharray',dash);
-            el.setAttribute('fill',g.fill);
-            if(g.opacity<1) el.setAttribute('fill-opacity',g.opacity);
-            if(g.opacity<1) {
-                el.setAttribute('stroke-opacity',g.opacity);
-                el.setAttribute('fill-opacity',g.opacity);
-            }
-            if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
-            */
             var points=el.points;
             for(var i=0;i<points.length;i++) { // IF HAS SPIN - USE refreshNodes()?
                 nodes.push({'x':points[i].x,'y':points[i].y,'n':Number(g.id*10+i)});
@@ -2895,18 +2848,6 @@ function makeElement(g) {
             el.setAttribute('height',g.height);
             el.setAttribute('rx',g.radius);
             el.setAttribute('spin',g.spin);
-            /* DO THIS AT END
-            el.setAttribute('stroke',g.stroke);
-            el.setAttribute('stroke-width',g.lineW);
-            var dash=setLineStyle(g);
-            if(dash) el.setAttribute('stroke-dasharray',dash);
-            el.setAttribute('fill',g.fill);
-            if(g.opacity<1) {
-                el.setAttribute('stroke-opacity',g.opacity);
-                el.setAttribute('fill-opacity',g.opacity);
-            }
-            if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
-            */
             console.log('made box'); // ADD NODES
             nodes.push({'x':(Number(g.x)+Number(g.width/2)),'y':(Number(g.y)+Number(g.height/2)),'n':Number(g.id*10+4)}); // centre - node 0
             nodes.push({'x':g.x,'y':g.y,'n':(g.id*10)}); // top/left - node 1
@@ -2923,18 +2864,6 @@ function makeElement(g) {
             el.setAttribute('rx',g.rx);
             el.setAttribute('ry',g.ry);
             el.setAttribute('spin',g.spin);
-            /* DO THIS AT END
-            el.setAttribute('stroke',g.stroke);
-            el.setAttribute('stroke-width',g.lineW);
-            var dash=setLineStyle(g);
-            if(dash) el.setAttribute('stroke-dasharray',dash);
-            el.setAttribute('fill',g.fill);
-            if(g.opacity<1) {
-                el.setAttribute('stroke-opacity',g.opacity);
-                el.setAttribute('fill-opacity',g.opacity);
-            }
-            if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
-            */
             console.log('made oval'); // ADD NODES
             // add nodes
             nodes.push({'x':g.cx,'y':g.cy,'n':(g.id*10)}); // centre: node 0
@@ -2951,18 +2880,6 @@ function makeElement(g) {
             var d='M'+g.cx+','+g.cy+' M'+g.x1+','+g.y1+' A'+g.r+','+g.r+' 0 '+g.major+','+g.sweep+' '+g.x2+','+g.y2;
             el.setAttribute('d',d);
             el.setAttribute('spin',g.spin);
-            /* DO THIS AT END
-            el.setAttribute('stroke',g.stroke);
-            el.setAttribute('stroke-width',g.lineW);
-            var dash=setLineStyle(g);
-            if(dash) el.setAttribute('stroke-dasharray',dash);
-            el.setAttribute('fill',g.fill);
-            if(g.opacity<1) {
-                el.setAttribute('stroke-opacity',g.opacity);
-                el.setAttribute('fill-opacity',g.opacity);
-            }
-            if(g.blur>0) el.setAttribute('filter','url(#blur'+g.blur+')');
-            */
             // create nodes for arc start, centre & end points USE refreshNodes()? AND ALLOW FOR SPIN
             nodes.push({'x':g.cx,'y':g.cy,'n':(g.id*10)}); // centre - node 0
             nodes.push({'x':g.x1,'y':g.y1,'n':Number(g.id*10+1)}); // start - node 1
@@ -3408,6 +3325,11 @@ function select(el,multiple) {
 					var graph=request.result;
 					console.log('got graph '+graph.id);
 					var pts=graph.points;
+					el.points=graph.points;
+					console.log(el.points.length+' points');
+					for(var q=0;q<el.points.length;q++) {
+						console.log('point '+q+': '+el.points[q].x+','+el.points[q].y);
+					}
 					var points='';
 					for(var i=0;i<graph.points.length;i++) points+=pts[i].x+','+pts[i].y+' ';
 					id('bluePolyline').setAttribute('points',points);
@@ -3729,6 +3651,7 @@ function showEditTools(visible) {
     }
 }
 function sketchPath(pts) {
+	console.log('get path for points: '+pts);
     // console.log(pts.length+' points');
 	var d='M'+pts[0].x+','+pts[0].y; // move to point 0
 	if(pts.length<3) d+=' L'+pts[1].x+','+pts[1].y; // 2 points - short straight line
@@ -3751,7 +3674,7 @@ function sketchPath(pts) {
 	        c2.x=pts[i].x-dx/n; // next control point
 	        c2.y=pts[i].y-dy/n;
 	        d+=' C'+c1.x+','+c1.y+' '+c2.x+','+c2.y+' '+pts[i].x+','+pts[i].y; // cubic curves
-	        console.log('point '+i+': '+d);
+	        // console.log('point '+i+': '+d);
 	        i++
 	    }
 	    c1.x=pts[i-1].x+dx/n;
