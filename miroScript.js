@@ -64,8 +64,7 @@ class Point {
 scr.w=screen.width;
 scr.h=screen.height;
 // alert('screen size '+scr.w+'x'+scr.h);
-dwg.x=dwg.y=copy.x=copy.y=0;
-copy.active=false;
+dwg.x=dwg.y=0;
 console.log("screen size "+scr.w+"x"+scr.h);
 id('canvas').width=scr.w;
 id('canvas').height=scr.h;
@@ -92,7 +91,6 @@ if(!aspect) {
     showDialog('newDrawingDialog',true);
 }
 else initialise();
-// setTimeout(function(){id('prompt').style.display='none'},5000);
 // disable annoying pop-up menu
 document.addEventListener('contextmenu', event=>event.preventDefault());
 // TOOLS
@@ -856,11 +854,7 @@ id('alignOptions').addEventListener('click',function() {
     // id('selection').innerHTML='';
 });
 id('copyButton').addEventListener('click',function() {
-	copy.active=true; // copy is active
-	copy.elements=[]; // build list of copy id's
-	console.log('copy '+selection.length+' elements - offsets: '+copy.x+','+copy.y);
-	if((copy.x==0)&&(copy.y==0)) prompt('COPY: drag to position');
-	else prompt('COPY: tap or drag');
+	console.log('copy '+selection.length+' elements');
 	for(var i=0;i<selection.length;i++) {
 		element=id(selection[i]);
 		var g={};
@@ -894,21 +888,21 @@ id('copyButton').addEventListener('click',function() {
                 case 'line':
                     g.points='';
                     for(var p=0;p<element.points.length;p++) {
-                        g.points+=element.points[p].x+copy.x+',';
-                        g.points+=element.points[p].y+copy.y+' ';
+                        g.points+=element.points[p].x;
+                        g.points+=element.points[p].y;
                     }
                     break;
                 case 'box':
-                    g.x=Number(element.getAttribute('x'))+copy.x;
-                    g.y=Number(element.getAttribute('y'))+copy.y;
+                    g.x=Number(element.getAttribute('x'));
+                    g.y=Number(element.getAttribute('y'));
                     g.width=Number(element.getAttribute('width'));
                     g.height=Number(element.getAttribute('height'));
                     g.radius=Number(element.getAttribute('rx'));
                     console.log('copy '+g.type+' at '+g.x+','+g.y);
                     break;
                 case 'oval':
-                    g.cx=Number(element.getAttribute('cx'))+copy.x;
-                    g.cy=Number(element.getAttribute('cy'))+copy.y;
+                    g.cx=Number(element.getAttribute('cx'));
+                    g.cy=Number(element.getAttribute('cy'));
                     g.rx=Number(element.getAttribute('rx'));
                     g.ry=Number(element.getAttribute('ry'));
                     console.log('copy '+g.type+' at '+g.cx+','+g.cy);
@@ -916,20 +910,20 @@ id('copyButton').addEventListener('click',function() {
                 case 'arc':
                     var d=element.getAttribute('d');
                     getArc(d);
-                    g.cx=arc.cx+copy.x;
-                    g.cy=arc.cy+copy.y;
-                    g.x1=arc.x1+copy.x;
-                    g.y1=arc.y1+copy.y;
-                    g.x2=arc.x2+copy.x;
-                    g.y2=arc.y2+copy.y;
+                    g.cx=arc.cx;
+                    g.cy=arc.cy;
+                    g.x1=arc.x1;
+                    g.y1=arc.y1;
+                    g.x2=arc.x2;
+                    g.y2=arc.y2;
                     g.r=arc.r;
                     g.major=arc.major;
                     g.sweep=arc.sweep;
                     console.log('copy '+g.type+' at '+g.cx+','+g.cy);
                     break;
                 case 'text':
-                    g.x=Number(element.getAttribute('x'))+copy.x;
-                    g.y=Number(element.getAttribute('y'))+copy.y;
+                    g.x=Number(element.getAttribute('x'));
+                    g.y=Number(element.getAttribute('y'));
                     g.flip=Number(element.getAttribute('flip'));
                     g.text=element.innerHTML;
                     g.textSize=Number(element.getAttribute('font-size'));
@@ -938,8 +932,8 @@ id('copyButton').addEventListener('click',function() {
                     if(element.getAttribute('font-weight')=='bold') g.textStyle='bold';
                     break;
                 case 'stamp':
-                    g.x=Number(element.getAttribute('x'))+copy.x;
-                    g.y=Number(element.getAttribute('y'))+copy.y;
+                    g.x=Number(element.getAttribute('x'));
+                    g.y=Number(element.getAttribute('y'));
                     g.flip=Number(element.getAttribute('flip'));
                     g.name=element.getAttribute('href').substr(1); // strip off leading #
                     break;
@@ -2125,27 +2119,14 @@ id('drawing').addEventListener('pointerup',function() {
                     dx=x-x0;
                     dy=y-y0;
             }
-            if(copy.active) { // copy-move so selection should be copies
-            	copy.x+=dx;
-            	copy.y+=dy;
-            	// copy.active=false;
-            	console.log('copy done - offsets: '+copy.x+','+copy.y);
-            	selection=[];
-            	while(copy.elements.length>0) selection.push(copy.elements.shift());
-            	console.log('selection includes '+selection.length+' copied elements - first is '+selection[0]);
-            }
             console.log('move '+selection.length+' elements by '+dx+','+dy);
             while(selection.length>0) { // move all selected elements
             	element=id(selection.pop());
-                // elID=selection.pop();
                 console.log('move element '+element.id);
-                // element=id(elID);
                 move(element,dx,dy);
-                if(copy.active) select(element);
-                else cancel();
             }
             id('selection').setAttribute('transform','translate(0,0)');
-            // cancel();
+            cancel();
             break;
         case 'boxSize':
             console.log('pointer up - moved: '+dx+'x'+dy);
@@ -2638,7 +2619,6 @@ function addGraph(el) {
         el.id=event.target.result;
         console.log('graph added - id: '+el.id+' - draw');
         id('dwg').appendChild(makeElement(el));
-        if(copy.active) copy.elements.push(el.id);
     }
     request.onerror=function(event) {
         console.log('add copy failed');
@@ -2646,7 +2626,6 @@ function addGraph(el) {
 }
 function cancel() { // cancel current operation and return to select mode
     mode='select';
-    copy.active=false;
     id('tools').style.display='block';
     element=null;
     selection=[];
@@ -2938,7 +2917,7 @@ function makeElement(g) {
 			id('pattern'+g.id).lastChild.setAttribute('fill',g.fill);
 			el.setAttribute('fill','url(#pattern'+g.id+')');
 		}
-		else el.setAttribute('fill',(g.fill=='none')?'none':g.fill);
+		else el.setAttribute('fill',(g.fillType=='none')?'none':g.fill);
 		if(g.opacity<1) {
 			el.setAttribute('stroke-opacity',g.opacity);
 			el.setAttribute('fill-opacity',g.opacity);
@@ -3307,16 +3286,8 @@ function select(el,multiple) {
 	}
 	else {
 		console.log('select '+el.id+' stroke: '+el.getAttribute('stroke')+' fill: '+el.getAttribute('fill'));
-		// TRY WITHOUT setStyle(el); // set style to suit selected element
-		// add node markers, boxes and handles to single selected item
+		// add boxes and handles to single selected item
 		id('handles').innerHTML=''; // clear any handles then add handles for selected element 
-		// first draw node markers?
-		for(var i=0;i<nodes.length;i++) { // draw tiny circle at each node
-			if(Math.floor(nodes[i].n/10)!=el.id) continue;
-			var html="<circle cx='"+nodes[i].x+"' cy='"+nodes[i].y+"' r='"+1+"'/>";
-			console.log('node at '+nodes[i].x+','+nodes[i].y);
-			id('handles').innerHTML+=html;
-		}
 		switch(type(el)) {
 			case 'sketch':
 				var graphs=db.transaction('graphs','readwrite').objectStore('graphs');
