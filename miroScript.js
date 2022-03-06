@@ -197,6 +197,7 @@ id('createNewDrawing').addEventListener('click',function() {
 });
 id('load').addEventListener('click',function() {
     id('replace').checked=true;
+    id('fileChooser').value='';
     showDialog('loadDialog',true); 
 });
 id('fileChooser').addEventListener('change',function() {
@@ -210,51 +211,11 @@ id('fileChooser').addEventListener('change',function() {
     var loader=new FileReader();
     loader.addEventListener('load',function(evt) {
         var data=evt.target.result;
-        // console.log("file "+file.name+" read: "+data);
+        console.log("file "+file.name+" read: "+data);
         var transaction=db.transaction(['graphs','stamps'],'readwrite');
 		var graphStore=transaction.objectStore('graphs');
 		var stampStore=transaction.objectStore('stamps');
-        if((method=='replace')||(method=='merge')) {
-        	var json=JSON.parse(data);
-			console.log("json: "+json);
-			if(method=='replace') {
-		    	name=file.name;
-		    	var n=name.indexOf('.json');
-		    	name=name.substr(0,n);
-		    	window.localStorage.setItem('name',name);
-		    	id('dwg').innerHTML=''; // clear drawing
-            	id('handles').innerHTML=''; // clear any edit handles
-		    	graphStore.clear();
-		    	stampStore.clear();
-		    	nodes=[];
-		    	aspect=json.aspect;
-		    	window.localStorage.setItem('aspect',aspect);
-		    	size=json.size;
-		    	window.localStorage.setItem('size',size);
-		    	window.localStorage.setItem('background',null);
-		    	console.log('load drawing - aspect:'+aspect+' size:'+size);
-		    	initialise();
-			}
-			else if(method=='merge') {
-		    	name='';
-		    	window.localStorage.setItem('name','');
-			}
-			for(var i=0;i<json.graphs.length;i++) {
-		        console.log('add graph '+json.graphs[i].type);
-		        if(method=='ref') {
-		            if(json.graphs[i].type=='dim') continue; // skip dimensions
-		            json.graphs[i].stroke='blue'; // reference layer in blue...
-		            json.graphs[i].fill='none'; // ...with no fill
-		            console.log('graph '+i+' set as blue outline'); 
-		        }
-		        var request=graphStore.add(json.graphs[i]);
-		    }
-		    for(i=0;i<json.stamps.length;i++) {
-		        console.log('add stamp '+json.stamps[i].name);
-		        request=stampStore.add(json.stamps[i]);
-		    }
-        }
-		else {
+		if((method=='background')||(method=='stamp')) {
 			var url=URL.createObjectURL(file);
 			console.log('image name:'+file.name);
 			if(method=='background') {
@@ -287,15 +248,44 @@ id('fileChooser').addEventListener('change',function() {
 				request.onerror=function(e) {console.log("error adding stamps");};
 			}
 		}
+        else if(method=='replace'){
+        	var json=JSON.parse(data);
+			console.log("json: "+json.graphs.length+' graphs');
+		    name=file.name;
+		    var n=name.indexOf('.json');
+		    name=name.substr(0,n);
+		    window.localStorage.setItem('name',name);
+		    id('dwg').innerHTML=''; // clear drawing
+            id('handles').innerHTML=''; // clear any edit handles
+		    graphStore.clear();
+		    stampStore.clear();
+		    nodes=[];
+		    aspect=json.aspect;
+		    window.localStorage.setItem('aspect',aspect);
+		    size=json.size;
+		    window.localStorage.setItem('size',size);
+		    window.localStorage.setItem('background',null);
+		    console.log('load drawing - aspect:'+aspect+' size:'+size);
+		    initialise();
+		}
+		else if(method=='merge') {
+			var json=JSON.parse(data);
+			console.log("json: "+json.graphs.length+' graphs');
+		    name='';
+		    window.localStorage.setItem('name','');
+		}
+		for(var i=0;i<json.graphs.length;i++) {
+		    console.log('add graph '+json.graphs[i].type);
+		    var request=graphStore.add(json.graphs[i]);
+		}
 		transaction.oncomplete=function() {
-		    console.log('loaded');
-            if(method!='stamp') load();
+		    console.log('LOAD');
+            if((method=='replace')||(method=='merge')) load();
 		}
     });
     loader.addEventListener('error',function(event) {
         console.log('load failed - '+event);
     });
-    // loader.readAsText(file);
     if(method=='background') loader.readAsDataURL(file);
     else loader.readAsText(file);
     showDialog('loadDialog',false);
@@ -1424,7 +1414,6 @@ id('opacity').addEventListener('change',function() {
 id('blur').addEventListener('change',function() {
     var val=event.target.value;
     console.log('blur: '+val);
-    // TRY THIS:
     if(selection.length>0) {
     	var col=id('fillCol').value;
     	for (var i=0;i<selection.length;i++) {
@@ -1436,7 +1425,6 @@ id('blur').addEventListener('change',function() {
     	}
     }
     else blur=val; // change default blur
-    // id('fill').style.opacity=val;
 });
 id('patternOption').addEventListener('click',function() {
 	console.log('click "pattern" - fill is '+element.getAttribute('fill'));
@@ -2557,7 +2545,10 @@ id('drawing').addEventListener('pointerup',function() {
             console.log('parent is '+el.parentNode.id);
             if(el.parentNode.id=='dwg') hit=el.id;
             if(hit) console.log('HIT: '+hit+' type: '+type(el));
-            else console.log('MISS');
+            else {
+            	console.log('MISS');
+            	selection=[];
+            }
             console.log('selected: '+selection.length);
             if(hit) {
                 if(selection.indexOf(hit)<0) { // add to selection
@@ -2787,7 +2778,7 @@ function makeElement(g) {
         case 'sketch':
             var el=document.createElementNS(ns,'path');
             el.setAttribute('id',g.id);
-            console.log('points: '+g.points);
+            // console.log('points: '+g.points);
             el.setAttribute('points',g.points);
             el.setAttribute('d',sketchPath(g.points));
             el.setAttribute('spin',g.spin);
@@ -3276,6 +3267,7 @@ function reset() {
     id('zoom').innerHTML=zoom;
 }
 function select(el,multiple) {
+	console.log('select element '+el);
 	if(multiple) { // one of multiple selection - highlight in blue
 		console.log('select element '+el.id+' of multiple selection');
 		var box=getBounds(el);
@@ -3622,7 +3614,7 @@ function showEditTools(visible) {
     }
 }
 function sketchPath(pts) {
-	console.log('get path for points: '+pts);
+	// console.log('get path for points: '+pts);
     // console.log(pts.length+' points');
 	var d='M'+pts[0].x+','+pts[0].y; // move to point 0
 	if(pts.length<3) d+=' L'+pts[1].x+','+pts[1].y; // 2 points - short straight line
@@ -3793,9 +3785,6 @@ request.onupgradeneeded=function(event) {
     if (!db.objectStoreNames.contains('stamps')) {
         var stamps=db.createObjectStore("stamps",{keyPath:'name'});
     }
-    /* if (!db.objectStoreNames.contains('images')) {
-        var stamps=db.createObjectStore("images",{keyPath:'id',autoIncrement:true});
-    } */
 };
 request.onerror=function(event) {
 	alert("indexedDB error");
