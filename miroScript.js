@@ -273,6 +273,7 @@ id('fileChooser').addEventListener('change',function() {
 			console.log("json: "+json.graphs.length+' graphs');
 		    name='';
 		    window.localStorage.setItem('name','');
+		    id('dwg').innerHTML=''; // clear content ready to reload everything
 		}
 		for(var i=0;i<json.graphs.length;i++) {
 		    console.log('add graph '+json.graphs[i].type);
@@ -1475,7 +1476,7 @@ id('drawing').addEventListener('pointerdown',function() {
         console.log('HANDLE '+val);
         var handle=id(val);
         var bounds=getBounds(element);
-        console.log('bounds: '+bounds.x+','+bounds.y+' '+bounds.width+'x'+bounds.height);
+        console.log('element '+element.id+' bounds: '+bounds.x+','+bounds.y+' '+bounds.width+'x'+bounds.height);
         id('blueBox').setAttribute('x',bounds.x);
         id('blueBox').setAttribute('y',bounds.y);
         id('blueBox').setAttribute('width',bounds.width);
@@ -1503,7 +1504,10 @@ id('drawing').addEventListener('pointerdown',function() {
             console.log('move using node '+node);
             mode='move';
             prompt('drag to MOVE');
-            switch(type(element)) {
+            // TRY...
+            offset.x=bounds.x-x;
+            offset.y=bounds.y-y;
+            /* INSTEAD OF switch(type(element)) {
                 case 'sketch':
                     x0=handle.getAttribute('x');
                     y0=handle.getAttribute('y');
@@ -1571,9 +1575,10 @@ id('drawing').addEventListener('pointerdown',function() {
                     x0=element.getAttribute('x');
                     y0=element.getAttribute('y');
             }
+            */
             console.log('offsets: '+offset.x+','+offset.y);
-            id('blueBox').setAttribute('x',x+offset.x);
-            id('blueBox').setAttribute('y',y+offset.y);
+            // id('blueBox').setAttribute('x',x+offset.x);
+            // id('blueBox').setAttribute('y',y+offset.y);
             id('guides').style.display='block';
             id('drawing').addEventListener('pointermove',drag);
             return;
@@ -2080,6 +2085,9 @@ id('drawing').addEventListener('pointerup',function() {
                 case 'sketch':
                 case 'line':
                 case 'shape':
+                	dx=x-x0;
+                    dy=y-y0;
+                    break;
                 case 'box':
                     dx=x-x0+offset.x;
                     dy=y-y0+offset.y;
@@ -2724,6 +2732,7 @@ function initialise() {
     console.log('viewbox: '+id('svg').getAttribute('viewBox'));
     w=dwg.w;
     h=dwg.h;
+    console.log('dwg size: '+w+'x'+h);
     id('background').innerHTML="<rect x='0' y='0' width='"+w+"' height='"+h+"' fill='white'/>";
     html="<rect x='0' y='0' width='"+w+"' height='"+h+"'/>"; // clip to drawing edges
     id('clipper').innerHTML=html;
