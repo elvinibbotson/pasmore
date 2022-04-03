@@ -1504,10 +1504,11 @@ id('drawing').addEventListener('pointerdown',function() {
             console.log('move using node '+node);
             mode='move';
             prompt('drag to MOVE');
-            // TRY...
+            /* TRY...
             offset.x=bounds.x-x;
             offset.y=bounds.y-y;
-            /* INSTEAD OF switch(type(element)) {
+            INSTEAD OF */
+            switch(type(element)) {
                 case 'sketch':
                     x0=handle.getAttribute('x');
                     y0=handle.getAttribute('y');
@@ -1575,7 +1576,6 @@ id('drawing').addEventListener('pointerdown',function() {
                     x0=element.getAttribute('x');
                     y0=element.getAttribute('y');
             }
-            */
             console.log('offsets: '+offset.x+','+offset.y);
             // id('blueBox').setAttribute('x',x+offset.x);
             // id('blueBox').setAttribute('y',y+offset.y);
