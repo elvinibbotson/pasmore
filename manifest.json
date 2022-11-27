@@ -1,16 +1,16 @@
 {
-  "name": "miro PWA",
-  "short_name": "miro",
+  "name": "pasmore PWA",
+  "short_name": "pasmore",
   "version": 3,
   "icons": [
 	{
-		"src": "miro512.png",
+		"src": "pasmore512.png",
 		"sizes": "512x512",
 		"type": "image/png",
 		"purpose": "any maskable"
 	}
   ],
-  "start_url": "/miro/",
+  "start_url": "/pasmore/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "blue",
