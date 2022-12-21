@@ -16,13 +16,7 @@
   	<meta name="msapplication-square70x70logo" content="icons/icon75.png"-->
 </head>
 <body>
-    <div id='prompt'>
-        <!--p><b>Draft:</b> digital drawings<br>
-        2D scale-drawing app for technical drafting<br>
-        A4-format (landscape or portrait) drawings<br>
-        Installs on your device as an app.</p>
-        <p>For <b>user guide</b> tap <i>document</i> button.</p-->
-    </div>
+    <div id='prompt'></div>
     <canvas id='canvas' x='0' y='0' width='100%' height='100%'></canvas>
     <svg id='background' xmlns='http://www.w3.org/2000/svg' width='297mm' height='210mm' viewBox='0 0 297 210'></svg>
     <div id='drawing'>
@@ -107,6 +101,11 @@
     <div id='line'></div>
     </div>
     <button id='undoButton' class='iconButton'></button>
+    <div id='sizes'>
+        <input id='first' type='number'/> <span id='between'>x</span>
+        <input id='second' type='number'/><span id='after'>mm</span>
+        <input id='spin' type='number'/>&deg;
+    </div>
     <div id='docDialog' class='dialog'>
         <p>DRAWING: <span id='drawingName'></span></p>
         <p><span id='drawingSize'></span> | <span id='drawingAspect'></span> | current zoom: <span id='zoom'></span></p>

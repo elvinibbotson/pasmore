@@ -37,7 +37,7 @@ button {
 	position: fixed;
 	left: 48px;
 	right: null;
-	top: 4px;
+	top: 48px;
 	padding: 5px;
 	border: 3px solid #666;
 	border-radius: 8px;
@@ -242,11 +242,12 @@ button {
     position: fixed;
     left: 48px;
     top: 8px;
+    width: 100%;
+    height: 24px;
     color: blue;
     background-color: white;
-    opacity: 0.5;
     padding: 4px;
-    font-size: 1em;
+    font-size: 1.2em;
     display: block;
     z-index: 13;
 }
@@ -254,6 +255,13 @@ button {
     background: url(svg/undo.svg) center center no-repeat;
     z-index: 12;
     display: none;
+}
+#sizes {
+	position: fixed;
+	left: 48px;
+	top: 8px;
+	z-index: 10;
+	display: none;
 }
 #lineShade {
     width: 24px;
