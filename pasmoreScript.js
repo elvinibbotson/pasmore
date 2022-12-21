@@ -159,7 +159,7 @@ id('gridSize').addEventListener('change',function() {
     console.log('grid is '+gridSize);
 });
 id('helpButton').addEventListener('click',function() {
-    window.open('Draft.pdf');
+    window.open('Pasmore.pdf');
     cancel();
 });
 id('new').addEventListener('click',function() {
@@ -639,11 +639,7 @@ id('confirmSpin').addEventListener('click',function() {
     cancel();
 });
 id('flipButton').addEventListener('click',function() {
-    // if(type(element)=='dim') return; // cannot flip dimensions
-    // id('copyLabel').style.color=(anchor)?'white':'gray'; // REDO WITHOUT ANCHOR
-    // id('copy').disabled=!anchor;
     console.log('show flip dialog');
-    // id('copy').checked=false;
     showDialog('flipDialog',true);
 });
 id('flipOptions').addEventListener('click',function() {
@@ -941,6 +937,120 @@ id('copyButton').addEventListener('click',function() {
             addGraph(g);
 	}
 	mode='move';
+});
+id('repeatButton').addEventListener('click',function() {
+    // if(selection.length!=1) return; // ******* ALLOW MULTIPLES *******
+    showDialog('textDialog',false);
+    id('countH').value=id('countV').value=1;
+    id('distH').value=id('distV').value=0;
+    showDialog('repeatDialog',true);
+});
+id('confirmRepeat').addEventListener('click',function() {
+    var nH=parseInt(id('countH').value);
+    var nV=parseInt(id('countV').value);
+    var dH=parseInt(id('distH').value);
+    var dV=parseInt(id('distV').value);
+    console.log('repeat '+type(element));
+    console.log(nH+' copies across at '+dH+'mm; '+nV+' copies down at '+dV+'mm');
+    // element=id(elID);
+    console.log(element.type+' stroke: '+element.stroke);
+    
+    for(var n=0;n<selection.length;n++) {
+    	element=id(selection[n]);
+		// var g={};
+    
+    for(var i=0;i<nH;i++) {
+        for(var j=0;j<nV;j++) {
+            if(i<1 && j<1) continue; // skip in-place duplicate
+            var g={};
+            g.type=type(element);
+            if(g.type!='combi') { // combis don't have style
+                g.stroke=element.getAttribute('stroke');
+                g.lineW=element.getAttribute('stroke-width');
+                g.lineStyle=getLineStyle(element);
+                var val=element.getAttribute('fill');
+                if(val.startsWith('url')) {
+                	var p=id('pattern'+element.id);
+                	g.fillType='pattern'+p.getAttribute('index');
+                	g.fill=p.firstChild.getAttribute('fill');
+                }
+                else {
+                	g.fillType=(val=='none')?'none':'solid';
+                	g.fill=val;
+                }
+                console.log('copy fillType: '+g.fillType+'; fill: '+g.fill);
+                var val=element.getAttribute('fill-opacity');
+                if(val) g.opacity=val;
+                /*
+                g.fill=element.getAttribute('fill');
+                var val=element.getAttribute('fill-opacity');
+                if(val) g.opacity=val;
+                */
+            }
+            g.spin=element.getAttribute('spin');
+            switch(g.type) {
+                case 'line':
+                    g.points='';
+                    for(var p=0;p<element.points.length;p++) {
+                        g.points+=element.points[p].x+(i*dH)+',';
+                        g.points+=element.points[p].y+(j*dV)+' ';
+                    }
+                    // g.setAttribute('points',points);
+                    // addGraph(g);
+                    break;
+                case 'box':
+                    g.x=Number(element.getAttribute('x'))+(i*dH);
+                    g.y=Number(element.getAttribute('y'))+(j*dV);
+                    g.width=Number(element.getAttribute('width'));
+                    g.height=Number(element.getAttribute('height'));
+                    g.radius=Number(element.getAttribute('rx'));
+                    console.log('copy['+i+','+j+'] '+g.type+' at '+g.x+','+g.y);
+                    // addGraph(g);
+                    break;
+                case 'oval':
+                    g.cx=Number(element.getAttribute('cx'))+(i*dH);
+                    g.cy=Number(element.getAttribute('cy'))+(j*dV);
+                    g.rx=Number(element.getAttribute('rx'));
+                    g.ry=Number(element.getAttribute('ry'));
+                    console.log('copy '+g.type+' at '+g.cx+','+g.cy);
+                    break;
+                case 'arc':
+                    var d=element.getAttribute('d');
+                    getArc(d);
+                    g.cx=arc.cx+(i*dH);
+                    g.cy=arc.cy+(j*dV);
+                    g.x1=arc.x1+(i*dH);
+                    g.y1=arc.y1+(j*dV);
+                    g.x2=arc.x2+(i*dH);
+                    g.y2=arc.y2+(j*dV);
+                    g.r=arc.r;
+                    g.major=arc.major;
+                    g.sweep=arc.sweep;
+                    console.log('copy['+i+','+j+'] of '+g.type+' at '+g.cx+','+g.cy);
+                    break;
+                case 'text':
+                    g.x=Number(element.getAttribute('x'))+(i*dH);
+                    g.y=Number(element.getAttribute('y'))+(j*dV);
+                    g.flip=Number(element.getAttribute('flip'));
+                    g.text=element.innerHTML;
+                    g.textSize=Number(element.getAttribute('font-size'))/scale;
+                    var style=element.getAttribute('font-style');
+                    g.textStyle=(style=='italic')?'italic':'fine';
+                    if(element.getAttribute('font-weight')=='bold') g.textStyle='bold';
+                    break;
+                case 'combi':
+                    g.x=Number(element.getAttribute('x'))+(i*dH);
+                    g.y=Number(element.getAttribute('y'))+(j*dV);
+                    g.flip=Number(element.getAttribute('flip'));
+                    g.name=element.getAttribute('href').substr(1); // strip off leading #
+                    break;
+            }
+            addGraph(g); // ENSURE THIS CREATES SEPARATE GRAPHS & NOT SAME ONE SEVERAL TIMES!
+        }
+    }
+    } // all selected elements repeated
+    showDialog('repeatDialog',false);
+    cancel();
 });
 id('filletButton').addEventListener('click',function() {
     if(type(element!='box')) return; // can only fillet box corners
@@ -2522,10 +2632,7 @@ id('drawing').addEventListener('pointerup',function() {
                         console.log('only one selection');
                         id('selection').innerHTML=''; // no blue box
                         element=id(selection[0]);
-                        // elID=selection[0];
-                        // element=id(elID);
                         select(element); // add handles etc
-                        // setStyle(element);
                     }
                     return;
                 }
@@ -3433,9 +3540,10 @@ function setButtons() {
     var n=selection.length;
     console.log('set buttons for '+n+' selected elements');
     var active=[3,9]; // active buttons - remove & move always active
-    // childNodes of editTools are... 0:add 1:remove 2:forward 3:back 4:move 5:spin 6:flip 7:align 8:double 9:repeat 10:fillet 11: define
+    // childNodes of editTools are... 0:add 1:remove 2:forward 3:back 4:spin 5:flip 6:align 7:double 8:repeat 9:fillet 10: define
     if(n>1) { // multiple selection
         active.push(15); // align active for multiple selection
+        active.push(19); // repeat active for multiple selection
         active.push(23);
     }
     else { // single element selected
@@ -3455,11 +3563,9 @@ function setButtons() {
     }
     var set='';
     for(i=0;i<active.length;i++) set+=active[i]+' ';
-    // console.log(active.length+' edit tools active: '+set);
     var n=id('editTools').childNodes.length;
     for(var i=0;i<n;i++) {
         var btn=id('editTools').childNodes[i];
-        // console.log(i+' '+btn.id+': '+(active.indexOf(i)>=0));
         id('editTools').childNodes[i].disabled=(active.indexOf(i)<0);
     }
 }
