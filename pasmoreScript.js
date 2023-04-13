@@ -265,8 +265,8 @@ id('fileChooser').addEventListener('change',function() {
 					var ratioV=img.height/dwg.h;
 					image.w=dwg.w;
 					image.h=dwg.h;
-					if(ratioH>ratioV) image.h=dwg.w*img.height/img.width; // fit image to paper width
-					else image.w=dwg.h*img.width/img.height; // fit image to paper height
+					if(ratioH>ratioV) image.h=dwg.w*img.height/img.width; // fit image to paper width...
+					else image.w=dwg.h*img.width/img.height; // ...or to paper height
 					canvas.width=image.pw=image.w/f;
 					canvas.height=image.ph=image.h/f;
 					console.log('image size: '+img.width+'x'+img.height+' change to '+image.pw+'x'+image.ph);
@@ -366,14 +366,13 @@ id('confirmSave').addEventListener('click',function() {
     	var canvas=id('canvas');
     	var img=document.createElement('img'); // new Image();
     	document.body.appendChild(img);
-    	var svg=id('svg').cloneNode(true); // copy svg
-    	var s=image.pw/(image.w/f); // scale svg to match original image size
-    	svg.setAttribute('transform','scale('+s+')');
+    	var svg=id('svg').cloneNode(true); // copy svg and set to full scale
+    	svg.setAttribute('viewBox',view.x+' '+view.y+' '+scr.w*f+' '+scr.h*f);
     	var xml=(new XMLSerializer).serializeToString(svg);
     	img.onload=function() {
     		w=img.clientWidth;
     		h=img.clientHeight;
-    		console.log('svg image.src: '+img.src+' and size: '+w+'x'+h);
+    		console.log('svg image size: '+w+'x'+h+'; zoom: '+zoom+'; viewbox: '+view.box);
 			ctx.drawImage(img,0,0,w,h);
 			var png_img=canvas.toDataURL("image/png");
 			var a=document.createElement('a');
