@@ -1688,6 +1688,7 @@ id('drawing').addEventListener('pointerdown',function() {
                 case 'text':
                     x0=element.getAttribute('x');
                     y0=element.getAttribute('y');
+                    console.log('text is at '+x0+','+y0);
                     var bounds=element.getBBox();
                     offset.x=0;
                     offset.y=-bounds.height;
@@ -2021,13 +2022,10 @@ function drag(event) {
             id('svg').setAttribute('viewBox',view.box);
             break;
         case 'line':
-        // case 'shape':
             if(Math.abs(x-x0)<snapD) x=x0; // snap to vertical
             if(Math.abs(y-y0)<snapD) y=y0; // snap to horizontal
             var n=blueline.points.length;
-            // var n=element.points.length;
             var point=blueline.points[n-1];
-            // var point=element.points[n-1];
             point.x=x;
             point.y=y;
             blueline.points[n-1]=point;
@@ -2347,13 +2345,11 @@ id('drawing').addEventListener('pointerup',function() {
             id('blueOval').setAttribute('ry',0);
             cancel();
             break;
-        case 'pan':
+        case 'pan': // EXIT PAN MODE
             console.log('pan ends at '+x+','+y);
             dwg.x-=(x-x0);
             dwg.y-=(y-y0);
-            // STAY IN PAN MODE UNTIL TAP TO EXIT
-            if((Math.abs(x-x0)<snapD)&&(Math.abs(y-y0)<snapD)) mode='select';
-            // console.log('mode is '+mode);
+            mode='select';
             break;
         case 'sketch':
             console.log('end sketching');
