@@ -3386,6 +3386,8 @@ function reset() {
     console.log('full-drawing-zoom: '+zoom);
     w=scr.w*f/zoom; // WAS w=dwg.w/zoom;
     h=scr.h*f/zoom; // WAS h=dwg.h/zoom;
+    dwg.x=0;
+    dwg.y=0;
     console.log('set viewbox to '+w+'x'+h);
     view.x=view.y=0;
     view.w=w;
