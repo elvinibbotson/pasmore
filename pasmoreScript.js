@@ -72,6 +72,7 @@ ctx=id('canvas').getContext('2d');
 name=window.localStorage.getItem('name');
 size=window.localStorage.getItem('size');
 aspect=window.localStorage.getItem('aspect');
+console.log('name: '+name+'; size: '+size+'; aspect: '+aspect);
 id('drawingName').innerHTML=name;
 id('drawingSize').innerHTML=size;
 id('drawingAspect').innerHTML=aspect;
@@ -1633,14 +1634,15 @@ id('drawing').addEventListener('pointerdown',function() {
                     x0=handle.getAttribute('x');
                     y0=handle.getAttribute('y');
                     console.log('handle at '+x0+','+y0);
-                    offset.x=offset.y=0; // assume this is start node
+                    offset.x=bounds.x-x0;
+                    offset.y=bounds.y-y0;
                     break;
                 case 'line':
                 case 'shape':
                     x0=element.points[0].x;
                     y0=element.points[0].y;
-                    offset.x=element.points[0].x-element.points[node].x;
-                    offset.y=element.points[0].y-element.points[node].y;
+                    offset.x=bounds.x-x0;
+                    offset.y=bounds.y-y0;
                     break;
                 case 'box':
                     x0=element.getAttribute('x');
@@ -2213,6 +2215,9 @@ id('drawing').addEventListener('pointerup',function() {
                 case 'sketch':
                 case 'line':
                 case 'shape':
+                	dx=x-x0;
+                	dy=y-y0;
+                	break;
                 case 'box':
                     dx=x-x0+offset.x;
                     dy=y-y0+offset.y;
